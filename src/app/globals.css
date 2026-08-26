@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0a0c;
+  --color-surface: #16171b;
+  --color-surface-2: #1c1d23;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-line-strong: rgba(255, 255, 255, 0.12);
+  --color-ink: #e6e6e8;
+  --color-mute: #9c9fa8;
+  --color-faint: #6b6e76;
+  --color-accent: #2563eb;
+  --color-accent-bright: #3b82f6;
+  --color-accent-deep: rgba(37, 99, 235, 0.16);
+  --color-ok: #3ed598;
+  --color-ok-deep: rgba(62, 213, 152, 0.12);
+  --color-bad: #f09595;
+  --color-bad-deep: rgba(240, 149, 149, 0.1);
+  --color-warn: #f5b85c;
+  --color-warn-deep: rgba(245, 184, 92, 0.12);
+
+  --font-display: var(--font-fraunces), georgia, serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  --radius-card: 14px;
+
+  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.25);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.55), 0 6px 20px rgba(0, 0, 0, 0.35);
+
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-scale-in: scale-in 180ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: white;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent-bright);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    border: 2px solid var(--color-bg);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .tnum {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  .acrylic {
+    background: rgba(20, 20, 24, 0.82);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 16px;
+    box-shadow: var(--shadow-modal);
+  }
+
+  .skeleton-pulse {
+    background: var(--color-surface);
+    border-radius: 8px;
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
+  }
+
+  .input-base {
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--color-ink);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .input-base::placeholder {
+    color: var(--color-faint);
+  }
+
+  .input-base:focus {
+    outline: none;
+    border-color: var(--color-accent-bright);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  }
+
+  .input-base:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
