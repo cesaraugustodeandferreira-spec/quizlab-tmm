@@ -23,7 +23,8 @@ export function QuestionView({
   timedOut,
   onSelect,
 }: QuestionViewProps) {
-  const q = view.question!;
+  const q = view.question;
+  if (!q) return null;
   const deadline =
     q.started_at && q.seconds ? new Date(q.started_at).getTime() + q.seconds * 1000 : null;
 
@@ -70,7 +71,7 @@ function QuestionInner(props: {
   deadlineKey: number | null;
 }) {
   const deadline = props.startedAtMs
-    ? props.startedAtMs + props.seconds * 1000 + props.serverOffsetMs
+    ? props.startedAtMs + props.seconds * 1000
     : null;
   const remainingMs = useCountdown(deadline, props.serverOffsetMs);
   const expired = remainingMs <= 0;
@@ -189,7 +190,8 @@ export function RevealView({
 }: {
   view: PlayerView;
 }) {
-  const reveal = view.reveal_data!;
+  const reveal = view.reveal_data;
+  if (!reveal) return null;
   const mine = reveal.my;
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-10 text-center">

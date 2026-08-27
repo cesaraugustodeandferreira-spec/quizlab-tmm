@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useCountdown } from "@/hooks/useCountdown";
 import { clamp } from "@/lib/utils";
 
 export function TimerRing({

@@ -48,7 +48,7 @@ export function QuestionBreakdownModal({
         </div>
 
         <ul className="space-y-2.5" aria-label="Distribuição das alternativas">
-          {LETTERS.map((letter, idx) => {
+          {LETTERS.slice(0, question.options_text?.length ?? 4).map((letter, idx) => {
             const chosen = question.options.find((o) => o.index === idx)?.count ?? 0;
             const isCorrect = question.correct_index === idx;
             const pct = Math.round((chosen / total) * 100);
