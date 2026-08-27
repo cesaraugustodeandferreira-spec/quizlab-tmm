@@ -109,8 +109,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-line py-6">
         <p className="text-center text-xs text-faint">
-          {BRAND.name}
-          {BRAND.institution ? ` · ${BRAND.institution}` : ""} · Uso interno escolar
+          by César Augusto
         </p>
       </footer>
     </div>
