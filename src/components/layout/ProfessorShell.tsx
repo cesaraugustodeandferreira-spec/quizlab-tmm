@@ -71,37 +71,37 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      <nav
-        aria-label="Navegação principal"
-        className="fixed left-0 top-0 z-40 hidden h-dvh w-14 flex-col items-center justify-between border-r border-line bg-surface py-3 sm:flex"
-      >
-        <div className="flex w-full flex-col items-center gap-1">
-          <Link
-            href="/professor/dashboard"
-            aria-label="Início"
-            className="mb-3 flex size-9 items-center justify-center rounded-xl bg-accent text-white transition-transform hover:scale-105"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 3h6l-.7 5.364a4 4 0 0 0 .4 2.34l3.3 6.296a2 2 0 0 1-1.772 2.93H5.772a2 2 0 0 1-1.772-2.93l3.3-6.296a4 4 0 0 0 .4-2.34L7 3z" />
-              <path d="M6.5 15h11" />
-            </svg>
-          </Link>
-          {NAV.map((item) => (
-            <RailLink key={item.href} {...item} pathname={pathname!} />
-          ))}
-        </div>
-        <button
-          onClick={() => void signOut()}
-          title="Sair da conta"
-          aria-label="Sair da conta"
-          className="rounded-lg p-2.5 text-faint transition-colors hover:bg-bad-deep hover:text-bad"
+      <div className="flex min-h-dvh">
+        <nav
+          aria-label="Navegação principal"
+          className="sticky top-0 hidden h-dvh w-14 shrink-0 flex-col items-center justify-between border-r border-line bg-surface py-3 sm:flex"
         >
-          <IconLogout size={19} stroke={1.8} />
-        </button>
-      </nav>
+          <div className="flex w-full flex-col items-center gap-1">
+            <Link
+              href="/professor/dashboard"
+              aria-label="Início"
+              className="mb-3 flex size-9 items-center justify-center rounded-xl bg-accent text-white transition-transform hover:scale-105"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M9 3h6l-.7 5.364a4 4 0 0 0 .4 2.34l3.3 6.296a2 2 0 0 1-1.772 2.93H5.772a2 2 0 0 1-1.772-2.93l3.3-6.296a4 4 0 0 0 .4-2.34L7 3z" />
+                <path d="M6.5 15h11" />
+              </svg>
+            </Link>
+            {NAV.map((item) => (
+              <RailLink key={item.href} {...item} pathname={pathname!} />
+            ))}
+          </div>
+          <button
+            onClick={() => void signOut()}
+            title="Sair da conta"
+            aria-label="Sair da conta"
+            className="rounded-lg p-2.5 text-faint transition-colors hover:bg-bad-deep hover:text-bad"
+          >
+            <IconLogout size={19} stroke={1.8} />
+          </button>
+        </nav>
 
-      <div className="sm:pl-14">
-        <div className="p-2.5 sm:p-3">
+        <div className="flex-1 min-w-0 p-2.5 sm:p-3">
           <header className="mb-6 flex flex-wrap items-center justify-between gap-3 px-1 pt-1 pb-2">
             <Breadcrumb items={header?.breadcrumb ?? []} />
             <div className="flex items-center gap-3">
