@@ -50,6 +50,13 @@ export async function createSubject(rawName: string): Promise<Subject> {
   return data as Subject;
 }
 
+export async function deleteSubject(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("subjects").delete().eq("id", id);
+  if (error) throw new Error("Não foi possível excluir a disciplina.");
+  emitSubjectsChanged();
+}
+
 export async function listTopics(subjectId?: string): Promise<Topic[]> {
   const supabase = createClient();
   let query = supabase.from("topics").select("*").order("name");

@@ -6,12 +6,14 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import {
   createSubject,
+  deleteSubject,
   listSubjects,
   normalizeName,
   subscribeSubjects,
 } from "@/lib/api/taxonomy";
+import { cn } from "@/lib/utils";
 import type { Subject } from "@/types";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 const CREATE_VALUE = "__create_subject__";
@@ -49,6 +51,10 @@ export function SubjectSelect({
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -106,30 +112,71 @@ export function SubjectSelect({
     }
   }
 
+  async function handleDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSubject(value);
+      setSubjects((prev) => prev.filter((s) => s.id !== value));
+      const reset = leadingOptions.length ? leadingOptions[0].value : "";
+      onChange(reset);
+      setConfirmOpen(false);
+      toast("Disciplina excluída.", "ok");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Erro ao excluir disciplina.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return <div className="input-base skeleton-pulse" aria-hidden />;
   }
 
   const hasEmptyLeading = leadingOptions.some((o) => o.value === "");
+  const selected = subjects.find((s) => s.id === value);
+  const canDelete = !!selected && !!selected.teacher_id && !disabled;
 
   return (
     <>
-      <Select id={id} value={value} onChange={(e) => handleChange(e.target.value)} disabled={disabled} className={className}>
-        {leadingOptions.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-        {!hasEmptyLeading && <option value="">{placeholder}</option>}
-        {subjects.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-        {!disabled && (
-          <option value={CREATE_VALUE}>+ Criar disciplina</option>
+      <div className={cn("flex items-center gap-2", className)}>
+        <Select
+          id={id}
+          value={value}
+          onChange={(e) => handleChange(e.target.value)}
+          disabled={disabled}
+          className="flex-1 min-w-0"
+        >
+          {leadingOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+          {!hasEmptyLeading && <option value="">{placeholder}</option>}
+          {subjects.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+          {!disabled && <option value={CREATE_VALUE}>+ Criar disciplina</option>}
+        </Select>
+
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setConfirmOpen(true);
+            }}
+            aria-label="Excluir disciplina"
+            title="Excluir disciplina"
+            className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-line-strong text-faint transition-colors hover:border-bad/40 hover:bg-bad-deep hover:text-bad"
+          >
+            <IconTrash size={18} />
+          </button>
         )}
-      </Select>
+      </div>
 
       <Modal
         open={modalOpen}
@@ -164,6 +211,34 @@ export function SubjectSelect({
         {error && (
           <p role="alert" className="mt-2 flex items-center gap-1 text-sm text-bad">
             <span aria-hidden>⚠</span> {error}
+          </p>
+        )}
+      </Modal>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Excluir disciplina?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={() => void handleDelete()} loading={deleting}>
+              {deleting ? "Excluindo…" : "Excluir"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm leading-relaxed text-mute">
+          A disciplina <span className="font-medium text-ink">{selected?.name}</span> e todos os
+          quizzes, questões e respostas vinculados serão apagados permanentemente. Esta ação não pode
+          ser desfeita.
+        </p>
+        {deleteError && (
+          <p role="alert" className="mt-3 flex items-center gap-1 text-sm text-bad">
+            <span aria-hidden>⚠</span> {deleteError}
           </p>
         )}
       </Modal>
