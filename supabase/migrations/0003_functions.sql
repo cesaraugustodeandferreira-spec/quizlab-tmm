@@ -207,7 +207,7 @@ begin
           where qq.quiz_id = s.quiz_id
         ) else null end,
         'ranking', case when s.show_ranking then (
-          select coalesce(jsonb_agg(x order by x.points desc), '[]'::jsonb)
+          select coalesce(jsonb_agg(x), '[]'::jsonb)
           from (
             select ss2.name, sum(a2.points_earned)::numeric as points,
                    count(*) filter (where a2.is_correct)::int as correct,
@@ -624,7 +624,7 @@ begin
       ) t
     ), '[]'::jsonb),
     'attention', coalesce((
-      select jsonb_agg(t order by t.pct asc)
+      select jsonb_agg(t)
       from (
         select coalesce(tp.name, q.subtopic, 'Sem tema') as topic,
                c.name as class_name,
@@ -670,7 +670,7 @@ begin
       where s.class_id = p_class_id and s.status = 'encerrada'
     ),
     'topics', coalesce((
-      select jsonb_agg(jsonb_build_object('label', t.label, 'pct', round(t.pct), 'n', t.n) order by t.pct asc)
+      select jsonb_agg(jsonb_build_object('label', label, 'pct', round(pct), 'n', n))
       from (
         select coalesce(tp.name, q.subtopic, 'Sem tema') as label,
                avg(a.is_correct::int) * 100 as pct,
@@ -680,13 +680,14 @@ begin
         left join public.topics tp on tp.id = q.topic_id
         where a.class_id = p_class_id
         group by 1
+        order by pct asc
       ) t
     ), '[]'::jsonb),
     'hardest', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'question_id', t.qid, 'statement', t.statement,
-        'difficulty', t.difficulty, 'pct', round(t.pct), 'n', t.n
-      ) order by t.pct asc)
+        'question_id', qid, 'statement', statement,
+        'difficulty', difficulty, 'pct', round(pct), 'n', n
+      ))
       from (
         select q.id as qid, q.statement, q.difficulty,
                avg(a.is_correct::int) * 100 as pct,
@@ -695,10 +696,10 @@ begin
         join public.questions q on q.id = a.question_id
         where a.class_id = p_class_id
         group by q.id, q.statement, q.difficulty
+        having count(*) > 0
+        order by pct asc
+        limit 5
       ) t
-      where t.n > 0
-      order by t.pct asc
-      limit 5
     ), '[]'::jsonb),
     'history', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -765,7 +766,7 @@ begin
     'avg_points', round((select avg(a.points_earned) from public.answers a where a.session_id = p_session_id)),
     'avg_time_s', round((select avg(a.time_ms) / 1000.0 from public.answers a where a.session_id = p_session_id and a.time_ms is not null), 1),
     'topics', coalesce((
-      select jsonb_agg(jsonb_build_object('label', t.label, 'pct', round(t.pct), 'n', t.n) order by t.pct asc)
+      select jsonb_agg(jsonb_build_object('label', label, 'pct', round(pct), 'n', n))
       from (
         select coalesce(tp.name, q.subtopic, 'Sem tema') as label,
                avg(a.is_correct::int) * 100 as pct, count(*)::int as n
@@ -774,16 +775,17 @@ begin
         left join public.topics tp on tp.id = q.topic_id
         where a.session_id = p_session_id
         group by 1
+        order by pct asc
       ) t
     ), '[]'::jsonb),
     'questions', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'question_id', t.qid, 'position', t.pos, 'statement', t.statement,
-        'difficulty', t.difficulty, 'topic', t.topic,
-        'pct', round(t.pct), 'n', t.n, 'options', t.opts,
-        'options_text', t.opts_text,
-        'correct_index', t.correct_index
-      ) order by t.pct asc)
+        'question_id', qid, 'position', pos, 'statement', statement,
+        'difficulty', difficulty, 'topic', topic,
+        'pct', round(pct), 'n', n, 'options', opts,
+        'options_text', opts_text,
+        'correct_index', correct_index
+      ))
       from (
         select q.id as qid, qq.position as pos, q.statement, q.difficulty,
                coalesce(tp.name, q.subtopic, 'Sem tema') as topic,
@@ -793,12 +795,13 @@ begin
                (select count(*)::int from public.answers a
                 where a.session_id = p_session_id and a.question_id = q.id) as n,
                coalesce((
-                 select jsonb_agg(jsonb_build_object('index', b.bucket, 'count', b.cnt) order by b.bucket nulls last)
+                 select jsonb_agg(jsonb_build_object('index', bucket, 'count', cnt))
                  from (
                    select a.selected_index as bucket, count(*)::int as cnt
                    from public.answers a
                    where a.session_id = p_session_id and a.question_id = q.id
                    group by a.selected_index
+                   order by bucket nulls last
                  ) b
                ), '[]'::jsonb) as opts,
                (select jsonb_agg(value order by ord) from jsonb_array_elements_text(q.options) with ordinality as t(value, ord)) as opts_text
@@ -806,6 +809,7 @@ begin
         join public.questions q on q.id = qq.question_id
         left join public.topics tp on tp.id = q.topic_id
         where qq.quiz_id = s.quiz_id
+        order by pct asc
       ) t
     ), '[]'::jsonb),
     'students', coalesce((
@@ -873,7 +877,7 @@ begin
       from public.session_students ss where ss.class_student_id = p_student_id
     ),
     'topics', coalesce((
-      select jsonb_agg(jsonb_build_object('label', t.label, 'pct', round(t.pct), 'n', t.n) order by t.pct asc)
+      select jsonb_agg(jsonb_build_object('label', label, 'pct', round(pct), 'n', n))
       from (
         select coalesce(tp.name, q.subtopic, 'Sem tema') as label,
                avg(a.is_correct::int) * 100 as pct, count(*)::int as n
@@ -883,12 +887,13 @@ begin
         left join public.topics tp on tp.id = q.topic_id
         where ss.class_student_id = p_student_id
         group by 1
+        order by pct asc
       ) t
     ), '[]'::jsonb),
     'evolution', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'session_id', t.sid, 'title', t.title, 'date', t.d, 'pct', round(t.pct)
-      ) order by t.d asc)
+        'session_id', sid, 'title', title, 'date', d, 'pct', round(pct)
+      ))
       from (
         select s.id as sid, q.title, coalesce(s.ended_at, s.created_at) as d,
                avg(a.is_correct::int) * 100 as pct
@@ -898,13 +903,14 @@ begin
         left join public.answers a on a.session_student_id = ss.id
         where ss.class_student_id = p_student_id
         group by s.id, q.title, d
+        order by d asc
       ) t
     ), '[]'::jsonb),
     'missed', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'question_id', t.qid, 'statement', t.statement, 'topic', t.topic,
-        'pct', round(t.pct), 'n', t.n
-      ) order by t.pct asc)
+        'question_id', qid, 'statement', statement, 'topic', topic,
+        'pct', round(pct), 'n', n
+      ))
       from (
         select q.id as qid, q.statement,
                coalesce(tp.name, q.subtopic, 'Sem tema') as topic,
@@ -915,10 +921,10 @@ begin
         left join public.topics tp on tp.id = q.topic_id
         where ss.class_student_id = p_student_id
         group by q.id, q.statement, 3
+        having count(*) > 0
+        order by pct asc
+        limit 8
       ) t
-      where t.n > 0
-      order by t.pct asc
-      limit 8
     ), '[]'::jsonb)
   );
 end $$;
