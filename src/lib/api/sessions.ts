@@ -7,7 +7,7 @@ export async function createSession(quizId: string, classId: string): Promise<Se
   if (!user.user) throw new Error("Sessão expirada. Faça login novamente.");
   const { data, error } = await supabase
     .from("quiz_sessions")
-    .insert({ quiz_id: quizId, class_id: classId, created_by: user.user.id })
+    .insert({ quiz_id: quizId, class_id: classId, teacher_id: user.user.id })
     .select()
     .single();
   if (error) throw new Error("Não foi possível criar a sala.");
