@@ -14,6 +14,7 @@ export interface Profile {
 export interface Subject {
   id: string;
   name: string;
+  teacher_id?: string | null;
 }
 
 export interface Topic {

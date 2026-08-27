@@ -3,11 +3,12 @@
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { ensureTopic, listSubjects, listTopics } from "@/lib/api/taxonomy";
+import { SubjectSelect } from "@/components/teacher/SubjectSelect";
+import { ensureTopic, listTopics } from "@/lib/api/taxonomy";
 import { createQuestion, updateQuestion } from "@/lib/api/questions";
 import { DIFFICULTY_LABELS } from "@/lib/scoring";
 import { LETTERS, cn } from "@/lib/utils";
-import type { Difficulty, QuestionInput, QuestionRow, Subject, Topic } from "@/types";
+import type { Difficulty, QuestionInput, QuestionRow, Topic } from "@/types";
 import { useEffect, useState } from "react";
 
 const emptyInput = (): QuestionInput => ({
@@ -36,24 +37,10 @@ export function QuestionFormModal({
   onSaved: (savedId: string, wasNew: boolean) => void;
 }) {
   const [input, setInput] = useState<QuestionInput>(emptyInput);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicQuery, setTopicQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    listSubjects()
-      .then((subs) => {
-        setSubjects(subs);
-        if (initial?.subject_id) return;
-        if (!lockedSubjectId && subs.length) {
-          setInput((prev) => ({ ...prev, subject_id: prev.subject_id || subs[0].id }));
-        }
-      })
-      .catch(() => setError("Não foi possível carregar as disciplinas."));
-  }, [open, initial?.subject_id, lockedSubjectId]);
 
   useEffect(() => {
     if (!open) return;
@@ -193,21 +180,12 @@ export function QuestionFormModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Disciplina" htmlFor="q-subject" required>
-            <Select
+            <SubjectSelect
               id="q-subject"
               value={input.subject_id}
               disabled={!!lockedSubjectId}
-              onChange={(e) => setInput((p) => ({ ...p, subject_id: e.target.value, topic_id: null }))}
-            >
-              <option value="" disabled>
-                Selecione…
-              </option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(id) => setInput((p) => ({ ...p, subject_id: id, topic_id: null }))}
+            />
           </Field>
           <Field label="Tema" htmlFor="q-topic" hint="Escolha existente ou digite um novo tema.">
             <Input

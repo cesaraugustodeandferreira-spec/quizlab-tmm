@@ -10,12 +10,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input, Select } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Progress";
 import { useToast } from "@/components/ui/Toast";
+import { SubjectSelect } from "@/components/teacher/SubjectSelect";
 import { fetchClassDiagnostics } from "@/lib/api/diagnostics";
 import { listClasses } from "@/lib/api/classes";
-import { listSubjects } from "@/lib/api/taxonomy";
 import { DIFFICULTY_LABELS } from "@/lib/scoring";
 import { fmtDate, fmtDateTime, pctText, cn } from "@/lib/utils";
-import type { ClassRoom, Subject, ClassDiagnostics } from "@/types";
+import type { ClassRoom, ClassDiagnostics } from "@/types";
 import {
   IconArrowLeft,
   IconChartBar,
@@ -37,7 +37,6 @@ function DiagnosticsContent() {
   const selectedClassId = searchParams.get("class");
 
   const [classes, setClasses] = useState<ClassRoom[] | null>(null);
-  const [subjects, setSubjects] = useState<Subject[] | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
 
   usePageHeader({
@@ -57,13 +56,6 @@ function DiagnosticsContent() {
       .then((list) => setClasses(list))
       .catch(() => setClasses([]));
   }, [classes]);
-
-  useEffect(() => {
-    if (subjects) return;
-    listSubjects()
-      .then((list) => setSubjects(list))
-      .catch(() => setSubjects([]));
-  }, [subjects]);
 
   function close() {
     router.push("/professor/diagnosticos");
@@ -85,7 +77,6 @@ function DiagnosticsContent() {
     <ClassAggregateStep
       classId={selectedClassId}
       classes={classes}
-      subjects={subjects}
       subjectFilter={subjectFilter}
       onSubjectFilter={setSubjectFilter}
       onSelectSession={goToSession}
@@ -166,7 +157,6 @@ function ClassPickerStep({
 function ClassAggregateStep({
   classId,
   classes,
-  subjects,
   subjectFilter,
   onSubjectFilter,
   onSelectSession,
@@ -174,7 +164,6 @@ function ClassAggregateStep({
 }: {
   classId: string;
   classes: ClassRoom[] | null;
-  subjects: Subject[] | null;
   subjectFilter: string;
   onSubjectFilter: (v: string) => void;
   onSelectSession: (sessionId: string) => void;
@@ -254,21 +243,15 @@ function ClassAggregateStep({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {subjects && subjects.length > 0 && (
-            <Field label="Disciplina" htmlFor="subject-filter">
-              <Select
-                id="subject-filter"
-                value={subjectFilter}
-                onChange={(e) => onSubjectFilter(e.target.value)}
-                className="w-48"
-              >
-                <option value="all">Todas as disciplinas</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Select>
-            </Field>
-          )}
+          <Field label="Disciplina" htmlFor="subject-filter">
+            <SubjectSelect
+              id="subject-filter"
+              value={subjectFilter}
+              onChange={onSubjectFilter}
+              className="w-48"
+              leadingOptions={[{ value: "all", label: "Todas as disciplinas" }]}
+            />
+          </Field>
         </div>
       </div>
 

@@ -8,15 +8,16 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "@/components/ui/Input";
+import { SubjectSelect } from "@/components/teacher/SubjectSelect";
 import { Skeleton, Progress } from "@/components/ui/Progress";
 import { Toggle } from "@/components/ui/Toggle";
 import { useToast } from "@/components/ui/Toast";
 import { useAsync } from "@/hooks/useAsync";
-import { listSubjects, listTopics } from "@/lib/api/taxonomy";
+import { listTopics } from "@/lib/api/taxonomy";
 import { addQuestionToQuiz, getQuiz, removeQuestionFromQuiz, reorderQuestions, setQuizStatus, updateQuiz, type QuizDetail } from "@/lib/api/quizzes";
 import { DIFFICULTY_LABELS } from "@/lib/scoring";
 import { LETTERS } from "@/lib/utils";
-import type { QuestionInput, QuestionRow, Subject, Topic } from "@/types";
+import type { QuestionInput, QuestionRow, Topic } from "@/types";
 import {
   IconArrowDown,
   IconArrowUp,
@@ -38,7 +39,6 @@ export default function QuizEditorPage() {
   const quiz = useAsync(() => getQuiz(quizId), [quizId]);
   const detail: QuizDetail | null = quiz.data;
 
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
 
   const [title, setTitle] = useState("");
@@ -54,10 +54,6 @@ export default function QuizEditorPage() {
   const [questionModal, setQuestionModal] = useState<{ open: boolean; editing: QuestionRow | null }>({ open: false, editing: null });
   const [startOpen, setStartOpen] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
-
-  useEffect(() => {
-    listSubjects().then(setSubjects).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!subjectId) return;
@@ -268,21 +264,14 @@ export default function QuizEditorPage() {
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Disciplina" htmlFor="quiz-subject">
-              <Select
+              <SubjectSelect
                 id="quiz-subject"
                 value={subjectId ?? ""}
-                onChange={(e) => {
-                  setSubjectId(e.target.value || null);
+                onChange={(id) => {
+                  setSubjectId(id || null);
                   setTopicId(null);
                 }}
-              >
-                <option value="">Selecione…</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+              />
             </Field>
             <Field label="Tema principal" htmlFor="quiz-topic">
               <Select
