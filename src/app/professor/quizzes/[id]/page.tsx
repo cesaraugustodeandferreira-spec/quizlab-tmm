@@ -1,7 +1,6 @@
 "use client";
 
 import { usePageHeader } from "@/components/layout/ProfessorShell";
-import { QuestionBankModal } from "@/components/teacher/QuestionBankModal";
 import { QuestionFormModal } from "@/components/teacher/QuestionFormModal";
 import { StartSessionModal } from "@/components/teacher/StartSessionModal";
 import { Badge } from "@/components/ui/Badge";
@@ -28,7 +27,6 @@ import {
   IconDeviceFloppy,
   IconTrash,
 } from "@tabler/icons-react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -54,7 +52,6 @@ export default function QuizEditorPage() {
   const [isShared, setIsShared] = useState(false);
 
   const [questionModal, setQuestionModal] = useState<{ open: boolean; editing: QuestionRow | null }>({ open: false, editing: null });
-  const [bankOpen, setBankOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
 
@@ -137,16 +134,6 @@ export default function QuizEditorPage() {
     if (ok) {
       toast("Quiz publicado! Já pode ser aplicado a uma turma.", "ok");
       void quiz.reload();
-    }
-  }
-
-  async function handleAddFromBank(selected: QuestionRow[]) {
-    try {
-      for (const q of selected) await addQuestionToQuiz(quizId, q.id);
-      toast(`${selected.length} questão(ões) adicionada(s).`, "ok");
-      void quiz.reload();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Erro ao adicionar questões.", "bad");
     }
   }
 
@@ -404,18 +391,12 @@ export default function QuizEditorPage() {
               <Button size="sm" icon={<IconPlus size={16} />} onClick={() => setQuestionModal({ open: true, editing: null })}>
                 Nova questão
               </Button>
-              <Button size="sm" variant="outline" icon={<IconDatabase size={16} />} onClick={() => setBankOpen(true)}>
-                Puxar do Banco de Questões
-              </Button>
             </div>
           </Card>
 
           {!published && (
             <p className="px-1 text-xs leading-relaxed text-faint">
-              Publique o quiz para liberá-lo na Biblioteca e permitir iniciar salas ao vivo.{" "}
-              <Link href="/professor/questoes" className="text-accent-bright hover:text-white">
-                Gerenciar banco de questões
-              </Link>
+              Publique o quiz para liberá-lo na Biblioteca e permitir iniciar salas ao vivo.
             </p>
           )}
         </div>
@@ -445,15 +426,6 @@ export default function QuizEditorPage() {
               }
             })();
           }}
-        />
-      )}
-
-      {bankOpen && (
-        <QuestionBankModal
-          open={bankOpen}
-          onClose={() => setBankOpen(false)}
-          excludeIds={detail.questions.map((q) => q.id)}
-          onAdd={(qs) => void handleAddFromBank(qs)}
         />
       )}
 

@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   IconBooks,
   IconChartBar,
-  IconDatabase,
   IconLayoutDashboard,
   IconListDetails,
   IconLogout,
@@ -21,7 +20,6 @@ const NAV = [
   { href: "/professor/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
   { href: "/professor/turmas", label: "Minhas Turmas", icon: IconSchool },
   { href: "/professor/quizzes", label: "Quizzes", icon: IconListDetails },
-  { href: "/professor/questoes", label: "Banco de Questões", icon: IconDatabase },
   { href: "/professor/biblioteca", label: "Biblioteca", icon: IconBooks },
   { href: "/professor/diagnosticos", label: "Diagnósticos", icon: IconChartBar },
   { href: "/professor/perfil", label: "Perfil", icon: IconUser },
