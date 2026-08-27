@@ -14,15 +14,17 @@ import { fetchSessionDiagnostics } from "@/lib/api/diagnostics";
 import { DIFFICULTY_LABELS, SESSION_STATUS_LABELS } from "@/lib/scoring";
 import { fmtDateTime, fmtRelative, pctText } from "@/lib/utils";
 import type { QuestionDiag } from "@/types";
-import { IconChartBar, IconDownload, IconTrophy } from "@tabler/icons-react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { IconArrowLeft, IconChartBar, IconDownload, IconTrophy } from "@tabler/icons-react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAsync } from "@/hooks/useAsync";
 
 export default function SessionDiagnosticsPage() {
   const params = useParams<{ sessionId: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
+  const returnClass = searchParams.get("returnClass");
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionDiag | null>(null);
 
   const diag = useAsync(() => fetchSessionDiagnostics(sessionId), [sessionId]);
@@ -30,11 +32,22 @@ export default function SessionDiagnosticsPage() {
   usePageHeader({
     breadcrumb: [
       { label: "Início", href: "/professor/dashboard" },
-      { label: "Diagnósticos", href: "/professor/diagnosticos" },
+      {
+        label: "Diagnósticos",
+        href: returnClass ? `/professor/diagnosticos?class=${returnClass}` : "/professor/diagnosticos",
+      },
       { label: diag.data?.meta.title ?? "Carregando…" },
     ],
     pill: diag.data?.meta.class_name ?? null,
   });
+
+  function goBack() {
+    if (returnClass) {
+      router.push(`/professor/diagnosticos?class=${returnClass}`);
+    } else {
+      router.push("/professor/diagnosticos");
+    }
+  }
 
   if (diag.loading) {
     return (
@@ -53,7 +66,7 @@ export default function SessionDiagnosticsPage() {
     return (
       <Card>
         <p className="py-8 text-center text-sm text-bad">{diag.error}</p>
-        <div className="pb-2 text-center">
+        <div className="text-center">
           <Button variant="outline" onClick={() => void diag.reload()}>
             Tentar novamente
           </Button>
@@ -69,13 +82,24 @@ export default function SessionDiagnosticsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">{d.meta.title}</h1>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-mute">
-            Turma {d.meta.class_name} · {fmtDateTime(d.meta.date)}
-            <Badge tone={d.meta.status === "encerrada" ? "neutral" : "warn"}>
-              {SESSION_STATUS_LABELS[d.meta.status]}
-            </Badge>
-          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={goBack}
+              className="rounded-lg p-1.5 text-faint transition-colors hover:bg-surface-2 hover:text-ink"
+              aria-label="Voltar"
+            >
+              <IconArrowLeft size={20} />
+            </button>
+            <div>
+              <h1 className="font-display text-2xl font-bold text-ink">{d.meta.title}</h1>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-mute">
+                Turma {d.meta.class_name} · {fmtDateTime(d.meta.date)}
+                <Badge tone={d.meta.status === "encerrada" ? "neutral" : "warn"}>
+                  {SESSION_STATUS_LABELS[d.meta.status]}
+                </Badge>
+              </p>
+            </div>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -177,23 +201,12 @@ export default function SessionDiagnosticsPage() {
                   {d.students.slice(0, 10).map((s, i) => (
                     <li
                       key={s.student_id}
-                      className={`flex items-center gap-3 rounded-lg px-2 py-2 ${
-                        s.class_student_id ? "hover:bg-surface-2" : ""
-                      }`}
+                      className="flex items-center gap-3 rounded-lg px-2 py-2"
                     >
                       <span className={`tnum w-7 text-center text-sm font-bold ${i < 3 ? "text-warn" : "text-faint"}`}>
                         {i + 1}º
                       </span>
-                      {s.class_student_id ? (
-                        <Link
-                          href={`/professor/alunos/${s.class_student_id}`}
-                          className="min-w-0 flex-1 truncate text-sm font-medium text-ink hover:text-accent-bright"
-                        >
-                          {s.name}
-                        </Link>
-                      ) : (
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{s.name}</span>
-                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{s.name}</span>
                       <span className="flex shrink-0 items-center gap-1.5 text-xs text-mute">
                         <IconTrophy size={13} className="text-faint" aria-hidden /> {s.correct}
                       </span>

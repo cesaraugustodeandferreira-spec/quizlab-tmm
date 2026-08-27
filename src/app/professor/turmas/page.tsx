@@ -2,7 +2,6 @@
 
 import { usePageHeader } from "@/components/layout/ProfessorShell";
 import { ClassFormModal } from "@/components/teacher/ClassFormModal";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,8 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { deleteClass, listClasses } from "@/lib/api/classes";
 import { fmtDate } from "@/lib/utils";
 import type { ClassRoom } from "@/types";
-import { IconCopy, IconPencil, IconPlus, IconSchool, IconTrash, IconUsers } from "@tabler/icons-react";
-import Link from "next/link";
+import { IconPencil, IconPlus, IconSchool, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useAsync } from "@/hooks/useAsync";
 
@@ -31,11 +29,6 @@ export default function ClassesPage() {
     ],
     pill: "Turmas",
   });
-
-  function copyCode(code: string) {
-    void navigator.clipboard.writeText(code);
-    toast(`Código ${code} copiado.`, "ok");
-  }
 
   if (error) {
     return (
@@ -56,7 +49,7 @@ export default function ClassesPage() {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Minhas Turmas</h1>
           <p className="mt-0.5 text-sm text-mute">
-            Organize alunos por turma e acompanhe o desempenho de cada uma.
+            Gerencie suas turmas. Clique em uma turma para editar.
           </p>
         </div>
         <Button
@@ -73,7 +66,7 @@ export default function ClassesPage() {
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-44" />
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       ) : !classes?.length ? (
@@ -89,47 +82,33 @@ export default function ClassesPage() {
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {classes.map((c) => (
             <li key={c.id}>
-              <Card interactive className="flex h-full flex-col gap-4">
-                <Link href={`/professor/turmas/${c.id}`} className="block" aria-label={`Abrir turma ${c.name}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-display truncate text-xl font-semibold text-ink">{c.name}</h2>
-                    <Badge tone="accent">{c.grade_year || "Turma"}</Badge>
-                  </div>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-faint">
-                    Criada em {fmtDate(c.created_at)}
-                    {c.identifier && <> · {c.identifier}</>}
-                  </p>
-                </Link>
-
+              <Card interactive className="flex h-full flex-col gap-3">
                 <button
-                  onClick={() => copyCode(c.access_code)}
-                  aria-label={`Copiar código da turma ${c.name}`}
-                  className="group flex cursor-pointer items-center justify-between rounded-[10px] border border-dashed border-line-strong px-3 py-2 transition-colors hover:bg-surface-2"
-                  title="Clique para copiar"
+                  onClick={() => {
+                    setEditing(c);
+                    setFormOpen(true);
+                  }}
+                  className="flex w-full cursor-pointer items-start justify-between gap-2 text-left"
+                  aria-label={`Editar turma ${c.name}`}
                 >
-                  <span className="font-display text-lg font-bold tracking-[0.25em] text-accent-bright">
-                    {c.access_code}
-                  </span>
-                  <IconCopy size={15} className="text-faint group-hover:text-mute" />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-display truncate text-xl font-semibold text-ink">{c.name}</h2>
+                    <p className="mt-1 text-xs text-faint">
+                      {c.grade_year || "Sem série definida"} · Criada em {fmtDate(c.created_at)}
+                    </p>
+                  </div>
+                  <IconPencil size={16} className="mt-1 shrink-0 text-faint" />
                 </button>
 
-                <div className="mt-auto flex items-center gap-2 border-t border-line pt-4">
-                  <Link
-                    href={`/professor/turmas/${c.id}`}
-                    className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-surface-2 text-sm font-medium text-ink transition-colors hover:bg-accent-deep hover:text-accent-bright"
-                  >
-                    <IconUsers size={15} /> Abrir turma
-                  </Link>
+                <div className="mt-auto flex items-center gap-2 border-t border-line pt-3">
                   <button
-                    aria-label={`Editar ${c.name}`}
-                    title="Editar"
                     onClick={() => {
                       setEditing(c);
                       setFormOpen(true);
                     }}
-                    className="rounded-lg p-2 text-faint transition-colors hover:bg-surface-2 hover:text-ink"
+                    className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-surface-2 text-sm font-medium text-ink transition-colors hover:bg-accent-deep hover:text-accent-bright"
                   >
-                    <IconPencil size={16} />
+                    <IconPencil size={15} /> Editar
                   </button>
                   <button
                     aria-label={`Excluir ${c.name}`}
@@ -138,7 +117,7 @@ export default function ClassesPage() {
                       setConfirm({
                         title: `Excluir turma ${c.name}?`,
                         message:
-                          "Todos os alunos, sessões e respostas vinculados a esta turma serão apagados permanentemente. Esta ação não pode ser desfeita.",
+                          "Todos os sessões e respostas vinculados a esta turma serão apagados permanentemente. Esta ação não pode ser desfeita.",
                         confirmLabel: "Excluir turma",
                         onConfirm: async () => {
                           try {

@@ -28,9 +28,6 @@ const NAV = [
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/professor/turmas") {
-    return pathname.startsWith("/professor/turmas") || pathname.startsWith("/professor/alunos");
-  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

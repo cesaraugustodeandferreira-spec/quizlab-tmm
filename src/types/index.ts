@@ -27,15 +27,6 @@ export interface ClassRoom {
   teacher_id: string;
   name: string;
   grade_year: string;
-  identifier: string | null;
-  access_code: string;
-  created_at: string;
-}
-
-export interface ClassStudent {
-  id: string;
-  class_id: string;
-  name: string;
   created_at: string;
 }
 
@@ -244,7 +235,6 @@ export interface ClassDiagnostics {
     avg_pct: number | null;
   }[];
   students: {
-    student_id: string;
     name: string;
     sessions: number;
     avg_pct: number | null;
@@ -267,7 +257,6 @@ export interface QuestionDiag {
 export interface StudentResultDiag {
   student_id: string;
   name: string;
-  class_student_id: string | null;
   points: number;
   correct: number;
   wrong: number;
@@ -299,22 +288,4 @@ export interface SessionDiagnostics {
   students: StudentResultDiag[];
 }
 
-export interface StudentDiagnostics {
-  name: string;
-  class_name: string;
-  class_id: string;
-  overall_pct: number | null;
-  correct: number;
-  wrong: number;
-  unanswered: number;
-  sessions_count: number;
-  topics: TopicStat[];
-  evolution: { session_id: string; title: string; date: string | null; pct: number | null }[];
-  missed: {
-    question_id: string;
-    statement: string;
-    topic: string;
-    pct: number;
-    n: number;
-  }[];
-}
+

@@ -20,7 +20,6 @@ export function ClassFormModal({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [gradeYear, setGradeYear] = useState(initial?.grade_year ?? "");
-  const [identifier, setIdentifier] = useState(initial?.identifier ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +35,6 @@ export function ClassFormModal({
       const payload = {
         name: name.trim(),
         grade_year: gradeYear.trim(),
-        identifier: identifier.trim(),
       };
       if (initial) await updateClass(initial.id, payload);
       else await createClass(payload);
@@ -54,7 +52,7 @@ export function ClassFormModal({
       open={open}
       onClose={onClose}
       title={initial ? "Editar turma" : "Nova turma"}
-      description="Os alunos entram nos quizzes pelo código da sala; a turma organiza os diagnósticos."
+      description="A turma serve para agrupar e filtrar diagnósticos por turma."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={loading}>
@@ -86,14 +84,6 @@ export function ClassFormModal({
             placeholder="9º ano EF"
             value={gradeYear}
             onChange={(e) => setGradeYear(e.target.value)}
-          />
-        </Field>
-        <Field label="Identificador interno (opcional)" htmlFor="class-identifier">
-          <Input
-            id="class-identifier"
-            placeholder="Ex.: TUR-2024-091"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
           />
         </Field>
       </form>
