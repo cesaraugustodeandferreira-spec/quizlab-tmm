@@ -30,6 +30,9 @@
 
   --animate-fade-in: fade-in 180ms ease-out;
   --animate-scale-in: scale-in 180ms ease-out;
+  --animate-route-enter: route-enter 150ms ease-out;
+  --animate-stagger-in: stagger-in 260ms ease-out both;
+  --animate-value-pulse: value-pulse 420ms ease-out;
 }
 
 @keyframes fade-in {
@@ -40,6 +43,27 @@
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.96) translateY(4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes route-enter {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes value-pulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.92; }
+  50% { opacity: 0.58; }
 }
 
 @layer base {
@@ -90,9 +114,9 @@
   }
 
   .acrylic {
-    background: rgba(20, 20, 24, 0.82);
-    backdrop-filter: blur(18px) saturate(140%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    background: rgba(20, 20, 24, 0.94);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
     border: 1px solid var(--color-line-strong);
     border-radius: 16px;
     box-shadow: var(--shadow-modal);
@@ -102,6 +126,18 @@
     background: var(--color-surface);
     border-radius: 8px;
     animation: skeleton-pulse 1.6s ease-in-out infinite;
+  }
+
+  .animate-route-enter {
+    animation: var(--animate-route-enter);
+  }
+
+  .stagger-item {
+    animation: var(--animate-stagger-in);
+  }
+
+  .value-pulse {
+    animation: var(--animate-value-pulse);
   }
 
   .input-base {

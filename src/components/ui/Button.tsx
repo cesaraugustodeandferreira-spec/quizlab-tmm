@@ -45,7 +45,7 @@ export function Button({
       {...props}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex cursor-pointer items-center justify-center font-medium transition-all duration-150 select-none",
+        "inline-flex cursor-pointer items-center justify-center font-medium transition-[background-color,border-color,color,transform,box-shadow] duration-[120ms] ease-out select-none active:scale-[0.98]",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variantClasses[variant],
         sizeClasses[size],

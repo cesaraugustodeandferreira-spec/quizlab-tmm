@@ -6,22 +6,25 @@ import { Skeleton } from "@/components/ui/Progress";
 import { useToast } from "@/components/ui/Toast";
 import { getQuiz, type QuizDetail } from "@/lib/api/quizzes";
 import {
-  broadcastRoom,
   getSession,
   hostAdvance,
   hostCancelRoom,
   hostCloseQuestion,
+  hostFinishQuiz,
   hostStart,
   listSessionAnswers,
   listSessionStudents,
   type SessionDetail,
 } from "@/lib/api/sessions";
-import { createClient } from "@/lib/supabase/client";
+import { usePostgresChanges, usePresenceState } from "@/hooks/useRealtimeChannel";
+import { RealtimePill } from "@/components/quiz/RealtimePill";
 import type { AnswerRow, SessionStudentRow } from "@/types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function HostClient({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
   const toast = useToast();
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
@@ -38,7 +41,7 @@ export function HostClient({ sessionId }: { sessionId: string }) {
       setStudents(st);
       setAnswers(ans);
     } catch {
-      /* silencioso: listas atualizam na próxima mudança */
+      /* silencioso */
     }
   }, [sessionId]);
 
@@ -59,27 +62,35 @@ export function HostClient({ sessionId }: { sessionId: string }) {
     void loadAll();
   }, [loadAll]);
 
-  const sessionActive = !!session;
+  // Sincronização em tempo real (Supabase Realtime):
+  //  - quiz_sessions (UPDATE) → recarrega o estado (timer, fase, questão atual, transição)
+  //  - session_students (INSERT/DELETE) → contador e lista de alunos na sala
+  //  - answers (INSERT/DELETE) → contagem de respostas e placar por alternativa ao vivo
+  const realtimeStatus = usePostgresChanges(
+    `host-${sessionId}`,
+    [
+      { table: "quiz_sessions", events: ["UPDATE"], filter: `id=eq.${sessionId}` },
+      { table: "session_students", events: ["INSERT", "DELETE"], filter: `session_id=eq.${sessionId}` },
+      { table: "answers", events: ["INSERT", "DELETE"], filter: `session_id=eq.${sessionId}` },
+    ],
+    (change) => {
+      if (change.table === "answers" || change.table === "session_students") {
+        void refreshLists();
+      } else if (change.table === "quiz_sessions") {
+        void loadAll();
+      }
+    },
+  );
+
+  // Presença do canal da sala: quantos alunos estão com a página aberta agora.
+  const onlineNow = usePresenceState(session?.room_code ? `presence:room:${session.room_code}` : null);
+
+  // Rede de segurança: revalida as listas a cada 5s para que o professor veja
+  // alunos e respostas mesmo se um evento de realtime se perder em trânsito.
   useEffect(() => {
-    if (!sessionActive) return;
-    const supabase = createClient();
-    const ch = supabase
-      .channel(`host-${sessionId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "session_students", filter: `session_id=eq.${sessionId}` },
-        () => void refreshLists(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "answers", filter: `session_id=eq.${sessionId}` },
-        () => void refreshLists(),
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(ch);
-    };
-  }, [sessionActive, sessionId, refreshLists]);
+    const t = setInterval(() => void refreshLists(), 5000);
+    return () => clearInterval(t);
+  }, [refreshLists]);
 
   const currentQuestion =
     session?.status === "em_andamento" ? (quiz?.questions[session.current_index - 1] ?? null) : null;
@@ -110,12 +121,62 @@ export function HostClient({ sessionId }: { sessionId: string }) {
     autoCloseGuard.current = false;
   }, [session?.current_index, revealed]);
 
+  const closeQuestion = useCallback(
+    async (fromTimer: boolean) => {
+      if (!sessionId || busy) return;
+      if (fromTimer && autoCloseGuard.current) return;
+      autoCloseGuard.current = true;
+      setBusy(true);
+      try {
+        await hostCloseQuestion(sessionId);
+        setRevealed(true);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Erro ao encerrar a questão.", "bad");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [sessionId, busy, toast],
+  );
+
+  const advanceNow = useCallback(async () => {
+    if (!sessionId) return;
+    setBusy(true);
+    try {
+      const result = await hostAdvance(sessionId);
+      setRevealed(false);
+      if (result.finished) toast("Quiz finalizado! Resultados liberados.", "ok");
+      await loadAll();
+      if (!result.finished) autoCloseGuard.current = false;
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Erro ao avançar questão.", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }, [sessionId, loadAll, toast]);
+
+  // Fecha a questão automaticamente quando o tempo da questão chega a 0 (servidor-sincronizado via deadlineMs)
+  useEffect(() => {
+    if (session?.phase !== "question" || deadlineMs === null) return;
+    const ms = deadlineMs - Date.now();
+    const t = setTimeout(() => void closeQuestion(true), Math.max(0, ms) + 400);
+    return () => clearTimeout(t);
+  }, [session?.phase, deadlineMs, session?.current_index, closeQuestion]);
+
+  // Avança automaticamente quando a contagem de 10s da transição chega a 0
+  useEffect(() => {
+    if (session?.phase !== "transition" || !session.transition_ends_at) return;
+    const endsAt = new Date(session.transition_ends_at).getTime();
+    const ms = Math.max(0, endsAt - Date.now());
+    const t = setTimeout(() => void advanceNow(), ms + 400);
+    return () => clearTimeout(t);
+  }, [session?.phase, session?.transition_ends_at, session?.current_index, advanceNow]);
+
   async function handleStart() {
     if (!session) return;
     setBusy(true);
     try {
       await hostStart(session.id);
-      broadcastRoom(session.room_code, { type: "sync" });
       setRevealed(false);
       await loadAll();
     } catch (err) {
@@ -130,44 +191,23 @@ export function HostClient({ sessionId }: { sessionId: string }) {
     setBusy(true);
     try {
       await hostCancelRoom(session.id);
-      broadcastRoom(session.room_code, { type: "closed" });
       toast("Sala encerrada.", "ok");
-      window.location.assign("/professor/quizzes");
+      router.push("/professor/quizzes");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Erro ao encerrar sala.", "bad");
       setBusy(false);
     }
   }
 
-  async function handleCloseQuestion(fromTimer: boolean) {
-    if (!session || busy) return;
-    if (fromTimer && autoCloseGuard.current) return;
-    autoCloseGuard.current = true;
-    setBusy(true);
-    try {
-      await hostCloseQuestion(session.id);
-      broadcastRoom(session.room_code, { type: "sync" });
-      setRevealed(true);
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Erro ao encerrar a questão.", "bad");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleAdvance(finish: boolean) {
+  async function handleFinish() {
     if (!session) return;
     setBusy(true);
     try {
-      const result = await hostAdvance(session.id);
-      broadcastRoom(session.room_code, { type: "sync" });
-      setRevealed(false);
-      if (result.finished) toast("Quiz finalizado! Resultados liberados.", "ok");
-      await loadAll();
-      if (!result.finished) autoCloseGuard.current = false;
+      await hostFinishQuiz(session.id);
+      toast("Quiz finalizado! Resultados liberados.", "ok");
+      router.push(`/professor/diagnosticos/${session.id}`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Erro ao avançar questão.", "bad");
-    } finally {
+      toast(err instanceof Error ? err.message : "Erro ao finalizar o quiz.", "bad");
       setBusy(false);
     }
   }
@@ -200,11 +240,15 @@ export function HostClient({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <>
+    <div className="relative">
+      <div className="fixed right-4 bottom-20 z-40 sm:bottom-4">
+        <RealtimePill status={realtimeStatus} />
+      </div>
       {session.status === "aguardando" && (
         <HostLobby
           roomCode={session.room_code}
           students={students}
+          onlineCount={onlineNow}
           onStart={() => void handleStart()}
           onCancel={() => void handleCancel()}
           busy={busy}
@@ -217,14 +261,6 @@ export function HostClient({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {session.status === "em_andamento" && currentQuestion && !revealed && deadlineMs !== null && (
-        <AutoClose
-          key={`${session.current_index}-${deadlineMs}`}
-          enabled={deadlineMs - Date.now()}
-          onExpire={() => void handleCloseQuestion(true)}
-        />
-      )}
-
       {session.status === "em_andamento" && currentQuestion && (
         <HostQuestion
           key={`${session.current_index}-${revealed}`}
@@ -232,17 +268,20 @@ export function HostClient({ sessionId }: { sessionId: string }) {
           total={quiz.questions.length}
           statement={currentQuestion.statement}
           imageUrl={currentQuestion.image_url}
+          options={currentQuestion.options}
           seconds={session.question_seconds ?? quiz.default_time_seconds}
           deadlineMs={deadlineMs}
+          phase={session.phase}
+          transitionEndsAt={session.transition_ends_at}
           answered={answeredCount}
           waiting={Math.max(students.length - answeredCount, 0)}
           optionCounts={optionCounts}
           reveal={revealed}
           correctIndex={currentQuestion.correct_index}
           busy={busy}
-          onCloseQuestion={() => void handleCloseQuestion(false)}
-          onNext={() => void handleAdvance(false)}
-          onFinish={() => void handleAdvance(true)}
+          onCloseQuestion={() => void closeQuestion(false)}
+          onNext={() => void advanceNow()}
+          onFinish={() => void handleFinish()}
           isLast={session.current_index >= quiz.questions.length}
         />
       )}
@@ -250,22 +289,9 @@ export function HostClient({ sessionId }: { sessionId: string }) {
       {session.status === "encerrada" && (
         <HostFinished
           students={students}
-          onOpenDiagnostics={() => window.location.assign(`/professor/diagnosticos/${session.id}`)}
+          onOpenDiagnostics={() => router.push(`/professor/diagnosticos/${session.id}`)}
         />
       )}
-    </>
+    </div>
   );
-}
-
-function AutoClose({ enabled, onExpire }: { enabled: number; onExpire: () => void }) {
-  useEffect(() => {
-    if (enabled <= 0) {
-      const t = setTimeout(onExpire, 300);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(onExpire, enabled + 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return null;
 }

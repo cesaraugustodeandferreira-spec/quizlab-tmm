@@ -75,9 +75,41 @@ supabase db push
 Em **Authentication → Sign In / Up**:
 
 - Provider **Email** habilitado (padrão).
-- Para uso interno escolar recomenda-se desativar a confirmação de e-mail
-  (**Authentication → Providers → Email → "Confirm email" off**) — assim o professor cria a conta
-  e entra direto. Se deixar ativado, o app já mostra o aviso de "verifique seu e-mail".
+- A confirmação de e-mail (**Authentication → Providers → Email → "Confirm email" on**) deve
+  permanecer **ativada**. O professor cria a conta, recebe um e-mail de confirmação e só então
+  consegue fazer login. Isso evita contas inválidas e garante que o e-mail informado é real.
+
+#### 2.3.1 Configurar envio de e-mail (SMTP) — obrigatório
+
+O envio de e-mail padrão do Supabase é limitado (adequado só para testes). Para produção,
+configure um provedor SMTP customizado em **Authentication → Settings → SMTP Settings**.
+
+Provedor já configurado no projeto: **Resend** (https://resend.com).
+
+| Campo (Supabase)      | Valor sugerido                          |
+| --------------------- | --------------------------------------- |
+| Host                  | `smtp.resend.com`                       |
+| Port                  | `465` (SMTP over TLS)                   |
+| Username              | `resend`                                |
+| Password              | sua API key do Resend                   |
+| Sender email          | o domínio verificado no Resend (ex: `naoresponda@seudominio.com`) |
+| Sender name           | `QuizLab`                               |
+
+> **Importante:** o endereço `onboarding@resend.dev` é o domínio de *teste* do Resend — e-mails
+> enviados a partir dele **só chegam no e-mail da conta dona do Resend**. Para enviar e-mails aos
+> professores de verdade, verifique um domínio próprio no Resend (adicionar domínio → configurar os
+> registros DNS → aguardar verificação) e use um endereço desse domínio como *Sender email*.
+
+#### 2.3.2 Variáveis de ambiente
+
+As credenciais do Resend **não** vão para o `.env.local` do Next.js (o Supabase guarda e envia
+direto). As variáveis usadas pelo app seguem listadas na seção 1. Para gerenciar as credenciais do
+Resend, use o painel do Resend / variáveis secretas do Supabase:
+
+| Variável (Resend)      | Onde obter                          |
+| ---------------------- | ----------------------------------- |
+| `RESEND_API_KEY`       | Resend → API Keys (para usar a API Resend no futuro) |
+| `RESEND_DOMAIN`        | o domínio verificado no Resend      |
 
 ### 2.4 URLs de recuperação de senha
 
@@ -90,7 +122,7 @@ Em **Authentication → URL Configuration**:
 
 ## 3. Fluxo de teste ponta a ponta
 
-1. **Professor cria conta** → `/registrar` → login automático ou confirmação por e-mail.
+1. **Professor cria conta** → `/registrar` → recebe e-mail de confirmação → confirma e faz login em `/login`.
 2. **Cria turma** → `/professor/turmas` → "Nova turma" (o código de acesso da turma é gerado sozinho).
 3. **Cria quiz** → `/professor/quizzes` → "Novo quiz" cria um rascunho e abre o editor:
    preencha nome/disciplina, crie questões novas ou use **"Puxar do Banco de Questões"**,

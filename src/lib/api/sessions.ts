@@ -83,53 +83,8 @@ export async function hostCancelRoom(sessionId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-type RealtimePayloadHandler = () => void;
-
-export function subscribeInserts(
-  channelName: string,
-  table: "answers" | "session_students",
-  filter: string,
-  onChange: RealtimePayloadHandler,
-) {
+export async function hostFinishQuiz(sessionId: string): Promise<void> {
   const supabase = createClient();
-  const channel = supabase
-    .channel(channelName)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table, filter },
-      () => onChange(),
-    )
-    .subscribe();
-
-  return () => {
-    void supabase.removeChannel(channel);
-  };
-}
-
-export type RoomEvent =
-  | { type: "sync" }
-  | { type: "closed" };
-
-export function broadcastRoom(roomCode: string, event: RoomEvent): void {
-  const supabase = createClient();
-  void supabase.channel(`room:${roomCode}`).send({
-    type: "broadcast",
-    event: "game",
-    payload: event,
-  });
-}
-
-export function subscribeRoom(
-  roomCode: string,
-  onEvent: (event: RoomEvent) => void,
-): () => void {
-  const supabase = createClient();
-  const channel = supabase
-    .channel(`room:${roomCode}`)
-    .on("broadcast", { event: "game" }, ({ payload }) => onEvent(payload as RoomEvent))
-    .subscribe();
-
-  return () => {
-    void supabase.removeChannel(channel);
-  };
+  const { error } = await supabase.rpc("host_finish_quiz", { p_session_id: sessionId });
+  if (error) throw new Error(error.message);
 }

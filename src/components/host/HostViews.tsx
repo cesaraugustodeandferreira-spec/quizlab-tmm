@@ -2,55 +2,66 @@
 
 import { TimerRing } from "@/components/quiz/TimerRing";
 import { BRAND } from "@/config/brand";
+import { useCountdown } from "@/hooks/useCountdown";
 import { LETTERS, cn } from "@/lib/utils";
-import type { SessionStudentRow } from "@/types";
+import type { SessionPhase, SessionStudentRow } from "@/types";
 import { IconCheck, IconPlayerPlay, IconTrophy, IconUsers } from "@tabler/icons-react";
 
 export function HostLobby({
   roomCode,
   students,
+  onlineCount,
   onStart,
   onCancel,
   busy,
 }: {
   roomCode: string;
   students: SessionStudentRow[];
+  onlineCount?: number;
   onStart: () => void;
   onCancel: () => void;
   busy: boolean;
 }) {
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-140px)] max-w-5xl flex-col items-center justify-center gap-8 py-8 text-center">
-      <p className="text-sm font-medium tracking-[0.3em] text-mute uppercase">Código da sala</p>
+    <div className="mx-auto flex min-h-[calc(100dvh-140px)] max-w-3xl flex-col items-center justify-center gap-6 py-8 text-center">
+      <p className="text-sm font-medium tracking-[0.3em] text-mute uppercase">Sala de espera</p>
 
-      <div className="flex flex-wrap items-center justify-center gap-4">
-        <h1
-          aria-label={`Código da sala: ${roomCode.split("").join(" ")}`}
-          className="tnum font-display text-7xl leading-none font-bold tracking-[0.12em] text-accent-bright select-all sm:text-[9rem]"
-        >
-          {roomCode}
-        </h1>
-        <button
-          onClick={() => void navigator.clipboard.writeText(roomCode)}
-          aria-label="Copiar código da sala"
-          className="mt-2 cursor-pointer rounded-xl border border-line-strong px-4 py-2 text-xs text-mute transition-colors hover:bg-surface hover:text-ink"
-        >
-          Copiar
-        </button>
+      <div className="acrylic w-full max-w-lg rounded-3xl border border-line p-7 shadow-soft">
+        <p className="text-sm font-medium tracking-[0.3em] text-mute uppercase">Código da sala</p>
+
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-5">
+          <span
+            aria-label={`Código da sala: ${roomCode.split("").join(" ")}`}
+            className="tnum font-display text-6xl leading-none font-bold tracking-[0.12em] text-accent-bright select-all sm:text-7xl"
+          >
+            {roomCode}
+          </span>
+          <button
+            onClick={() => void navigator.clipboard.writeText(roomCode)}
+            aria-label="Copiar código da sala"
+            className="cursor-pointer rounded-xl border border-line-strong px-4 py-2 text-xs text-mute transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            Copiar
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 rounded-full border border-line bg-surface px-6 py-3" aria-live="polite">
-        <IconUsers size={22} className="text-accent-bright" aria-hidden />
-        <span className="tnum text-3xl font-bold text-ink">{students.length}</span>
+      <div className="flex items-center gap-2.5 rounded-full border border-line bg-surface/70 px-5 py-2" aria-live="polite">
+        <IconUsers size={18} className="text-accent-bright" aria-hidden />
+        <span className="tnum text-2xl font-bold text-ink">{students.length}</span>
         <span className="text-sm text-mute">{students.length === 1 ? "aluno conectado" : "alunos conectados"}</span>
+        <span className="relative ml-2 flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-bright" />
+        </span>
       </div>
 
       {students.length > 0 && (
-        <ul aria-label="Alunos na sala" className="flex max-w-3xl flex-wrap justify-center gap-2">
+        <ul aria-label="Alunos na sala" className="flex max-w-2xl flex-wrap justify-center gap-2">
           {students.map((s) => (
             <li
               key={s.id}
-              className="animate-scale-in rounded-full border border-line bg-surface px-4 py-2 text-base font-medium text-ink"
+              className="animate-scale-in rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink"
             >
               {s.name}
             </li>
@@ -58,24 +69,18 @@ export function HostLobby({
         </ul>
       )}
 
-      {students.length === 0 && (
-        <p className="max-w-md text-lg text-faint">
-          Peça para os alunos acessarem <strong className="text-mute">/entrar</strong> no celular e digitarem o código acima.
-        </p>
-      )}
-
-      <div className="flex flex-col items-center gap-4 sm:flex-row">
+      <div className="flex flex-col items-center gap-3 sm:flex-row">
         <button
           onClick={onStart}
           disabled={busy}
-          className="inline-flex h-20 min-w-72 cursor-pointer items-center justify-center gap-3 rounded-2xl bg-ok px-10 text-2xl font-bold text-[#052e1e] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+          className="inline-flex h-14 min-w-60 cursor-pointer items-center justify-center gap-2 rounded-xl bg-ok px-8 text-lg font-bold text-[#052e1e] shadow-soft transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
         >
-          <IconPlayerPlay size={30} stroke={2.4} /> {busy ? "Iniciando…" : "Iniciar Quiz"}
+          <IconPlayerPlay size={22} stroke={2.4} /> {busy ? "Iniciando…" : "Iniciar Quiz"}
         </button>
         <button
           onClick={onCancel}
           disabled={busy}
-          className="h-14 cursor-pointer rounded-xl border border-line-strong px-6 text-lg text-mute transition-colors hover:border-bad/40 hover:bg-bad-deep hover:text-bad"
+          className="h-12 cursor-pointer rounded-xl border border-line-strong px-6 text-base text-mute transition-colors hover:border-bad/40 hover:bg-bad-deep hover:text-bad disabled:opacity-60"
         >
           Encerrar sala
         </button>
@@ -89,8 +94,11 @@ export function HostQuestion({
   total,
   statement,
   imageUrl,
+  options,
   seconds,
   deadlineMs,
+  phase,
+  transitionEndsAt,
   answered,
   waiting,
   optionCounts,
@@ -106,8 +114,11 @@ export function HostQuestion({
   total: number;
   statement: string;
   imageUrl: string | null;
+  options: string[];
   seconds: number;
   deadlineMs: number | null;
+  phase: SessionPhase;
+  transitionEndsAt: string | null;
   answered: number;
   waiting: number;
   optionCounts: number[];
@@ -120,6 +131,9 @@ export function HostQuestion({
   isLast: boolean;
 }) {
   const totalVotes = optionCounts.reduce((a, b) => a + b, 0);
+  const answerLeft = useCountdown(deadlineMs, 0);
+  const transitionLeft = useCountdown(transitionEndsAt ? new Date(transitionEndsAt).getTime() : null, 0);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-2">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -131,7 +145,11 @@ export function HostQuestion({
             {statement}
           </h1>
         </div>
-        <TimerRing secondsLeft={deadlineMs ? deadlineMs - Date.now() : 0} totalSeconds={seconds} size="lg" />
+        {reveal ? (
+          <TimerRing secondsLeft={transitionLeft} totalSeconds={10} size="lg" />
+        ) : (
+          <TimerRing secondsLeft={answerLeft} totalSeconds={seconds} size="lg" />
+        )}
       </header>
 
       {imageUrl && (
@@ -148,7 +166,7 @@ export function HostQuestion({
             <div
               key={idx}
               className={cn(
-                "relative overflow-hidden rounded-2xl border p-5 transition-colors",
+                "relative flex flex-col overflow-hidden rounded-2xl border p-5 transition-colors",
                 isCorrect ? "border-ok/60 bg-ok-deep" : reveal ? "border-line bg-surface opacity-70" : "border-line bg-surface",
               )}
               aria-live={isCorrect ? "polite" : undefined}
@@ -166,12 +184,17 @@ export function HostQuestion({
                     <IconCheck size={14} stroke={3} /> Correta
                   </span>
                 )}
-                <span className="tnum text-5xl font-bold text-white">{count}</span>
+                <span className="tnum text-5xl font-bold text-ink">{count}</span>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-2">
-                <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: color }} />
+              <p className="mt-3 line-clamp-3 min-h-10 text-left text-base leading-snug font-medium text-ink">
+                {options[idx] ?? ""}
+              </p>
+              <div className="mt-auto pt-4">
+                <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                  <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${pct}%`, background: color }} />
+                </div>
+                <p className="mt-1.5 text-right text-xs text-faint">{totalVotes ? `${pct}% das escolhas` : ""}</p>
               </div>
-              <p className="mt-1.5 text-right text-xs text-faint">{totalVotes ? `${pct}% das escolhas` : ""}</p>
             </div>
           );
         })}
@@ -184,17 +207,30 @@ export function HostQuestion({
 
       <footer className="flex flex-wrap items-center justify-center gap-3 pt-2">
         {!reveal ? (
-          <button
-            onClick={onCloseQuestion}
-            disabled={busy}
-            className="h-16 cursor-pointer rounded-2xl bg-accent px-10 text-xl font-bold text-white transition-all hover:bg-accent-bright active:scale-[0.98] disabled:opacity-60"
-          >
-            Encerrar questão
-          </button>
+          <>
+            <button
+              onClick={onCloseQuestion}
+              disabled={busy}
+              className="h-16 cursor-pointer rounded-2xl bg-accent px-10 text-xl font-bold text-white transition-all hover:bg-accent-bright active:scale-[0.98] disabled:opacity-60"
+            >
+              Encerrar questão
+            </button>
+            <button
+              onClick={onFinish}
+              disabled={busy}
+              className="h-16 cursor-pointer rounded-xl border border-line-strong px-6 text-lg text-mute transition-colors hover:border-bad/40 hover:bg-bad-deep hover:text-bad disabled:opacity-60"
+            >
+              Finalizar quiz
+            </button>
+          </>
         ) : (
           <>
             <p className="w-full text-center text-sm text-mute">
-              {totalVotes === 0 ? "Nenhuma resposta recebida nesta questão." : "Distribuição finalizada."}
+              {phase === "transition"
+                ? `Próxima questão em ${transitionLeft}s…`
+                : totalVotes === 0
+                  ? "Nenhuma resposta recebida nesta questão."
+                  : "Distribuição finalizada."}
             </p>
             {isLast ? (
               <button
@@ -211,6 +247,15 @@ export function HostQuestion({
                 className="h-16 cursor-pointer rounded-2xl bg-accent px-10 text-xl font-bold text-white transition-all hover:bg-accent-bright active:scale-[0.98] disabled:opacity-60"
               >
                 Próxima questão →
+              </button>
+            )}
+            {!isLast && (
+              <button
+                onClick={onFinish}
+                disabled={busy}
+                className="h-16 cursor-pointer rounded-xl border border-line-strong px-6 text-lg text-mute transition-colors hover:border-bad/40 hover:bg-bad-deep hover:text-bad disabled:opacity-60"
+              >
+                Finalizar quiz agora
               </button>
             )}
           </>

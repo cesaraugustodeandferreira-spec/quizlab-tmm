@@ -74,7 +74,7 @@ export function Modal({
       <div
         aria-hidden
         onClick={onClose}
-        className="animate-fade-in absolute inset-0 bg-black/40"
+        className="animate-fade-in absolute inset-0 bg-black/55"
       />
       <div
         ref={panelRef}

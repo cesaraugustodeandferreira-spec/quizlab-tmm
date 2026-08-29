@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { invalidateCache } from "@/lib/cache";
 import type { QuizInput, QuizRow, QuestionRow, Subject } from "@/types";
 
 export interface QuizWithMeta extends QuizRow {
@@ -87,11 +88,14 @@ export async function createQuiz(input: CreateQuizPayload): Promise<string> {
       show_ranking: input.show_ranking,
       show_score: input.show_score,
       show_correct_answers: input.show_correct_answers,
+      is_shared: input.is_shared ?? false,
       status: "rascunho",
     })
     .select("id")
     .single();
   if (error) throw new Error("Não foi possível criar o quiz.");
+  invalidateCache("quizzes");
+  invalidateCache("biblioteca");
   return (data as { id: string }).id;
 }
 
@@ -108,21 +112,35 @@ export async function updateQuiz(quizId: string, input: QuizInput): Promise<void
       show_ranking: input.show_ranking,
       show_score: input.show_score,
       show_correct_answers: input.show_correct_answers,
+      is_shared: input.is_shared,
     })
     .eq("id", quizId);
   if (error) throw new Error("Não foi possível salvar o quiz.");
+  invalidateCache("quizzes");
 }
 
 export async function setQuizStatus(quizId: string, status: "rascunho" | "publicado"): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("quizzes").update({ status }).eq("id", quizId);
   if (error) throw new Error(`Não foi possível ${status === "publicado" ? "publicar" : "salvar"} o quiz.`);
+  invalidateCache("quizzes");
+}
+
+export async function publishToLibrary(quizId: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("quizzes").update({ is_shared: true, status: "publicado" }).eq("id", quizId);
+  if (error) throw new Error("Não foi possível publicar na Biblioteca.");
+  invalidateCache("quizzes");
+  invalidateCache("biblioteca");
 }
 
 export async function deleteQuiz(quizId: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("quizzes").delete().eq("id", quizId);
   if (error) throw new Error("Não foi possível excluir o quiz.");
+  invalidateCache("quizzes");
+  invalidateCache("biblioteca");
+  invalidateCache("dashboard");
 }
 
 export async function addQuestionToQuiz(quizId: string, questionId: string): Promise<void> {
@@ -139,6 +157,7 @@ export async function addQuestionToQuiz(quizId: string, questionId: string): Pro
     if (error.code === "23505") throw new Error("Esta questão já está no quiz.");
     throw new Error("Não foi possível adicionar a questão.");
   }
+  invalidateCache("quizzes");
 }
 
 export async function removeQuestionFromQuiz(quizId: string, questionId: string): Promise<void> {
@@ -167,6 +186,7 @@ export async function reorderQuestions(quizId: string, orderedIds: string[]): Pr
     p_ids: orderedIds,
   });
   if (error) throw new Error("Não foi possível reordenar as questões.");
+  invalidateCache("quizzes");
 }
 
 export async function duplicateQuizRpc(quizId: string): Promise<string> {
@@ -175,5 +195,7 @@ export async function duplicateQuizRpc(quizId: string): Promise<string> {
   if (error) throw new Error(error.message.includes("não está disponível")
     ? error.message
     : "Não foi possível duplicar o quiz.");
+  invalidateCache("quizzes");
+  invalidateCache("biblioteca");
   return data as string;
 }

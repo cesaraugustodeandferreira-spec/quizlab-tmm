@@ -2,8 +2,9 @@
 
 import { LobbyView, ResultView } from "@/components/player/PlayerViews";
 import { QuestionView, RevealView } from "@/components/player/QuestionView";
+import { RealtimePill } from "@/components/quiz/RealtimePill";
 import { getPlayerView, submitPlayerAnswer } from "@/lib/api/play";
-import { subscribeRoom } from "@/lib/api/sessions";
+import { usePostgresChanges, usePresenceTrack } from "@/hooks/useRealtimeChannel";
 import { computeServerOffset } from "@/hooks/useCountdown";
 import type { PlayerView } from "@/types";
 import Link from "next/link";
@@ -17,6 +18,7 @@ export function PlayerClient({ roomCode }: { roomCode: string }) {
   const [name, setName] = useState("");
   const tokenRef = useRef<string | null>(null);
   const serverOffset = useRef(0);
+  const closedRef = useRef(false);
   const [submittingIndex, setSubmittingIndex] = useState<number | null>(null);
   const [timedOut, setTimedOut] = useState(false);
 
@@ -47,19 +49,42 @@ export function PlayerClient({ roomCode }: { roomCode: string }) {
     }
   }, [roomCode]);
 
-  useEffect(() => {
-    if (!tokenRef.current) return;
-    void refresh();
-    const unsub = subscribeRoom(roomCode, (event) => {
-      if (event.type === "closed") {
-        localStorage.removeItem(`ql_room_${roomCode}`);
-        setError("A sala foi encerrada pelo professor.");
+  const markClosed = useCallback((message: string) => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    localStorage.removeItem(`ql_room_${roomCode}`);
+    setError(message);
+  }, [roomCode]);
+
+  // Sincronização direta via Supabase Realtime: qualquer mudança na quiz_session
+  // desta sala (iniciar, avancar questão, encerrar questão, finalizar, cancelar)
+  // atualiza a tela imediatamente — sem esperar o professor "avisar".
+  const realtimeStatus = usePostgresChanges(
+    `player-${roomCode}`,
+    [{ table: "quiz_sessions", events: ["INSERT", "UPDATE", "DELETE"], filter: `room_code=eq.${roomCode}` }],
+    (change) => {
+      if (closedRef.current) return;
+      if (change.eventType === "DELETE") {
+        markClosed("A sala foi encerrada pelo professor.");
         return;
       }
       void refresh();
-    });
-    return unsub;
-  }, [roomCode, refresh, name]);
+    },
+  );
+
+  // Presence: marca este aluno como "online agora" para o professor enxergar quando sair.
+  usePresenceTrack(`presence:room:${roomCode}`, name ? { name } : null);
+
+  // Carregamento inicial: busca a view da sala assim que entra (antes de qualquer evento).
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // Ao trocar de questão, limpa o estado local de resposta/tempo esgotado.
+  useEffect(() => {
+    setTimedOut(false);
+    setSubmittingIndex(null);
+  }, [view?.current_index]);
 
   async function handleSelect(index: number) {
     if (!tokenRef.current || !view?.question) return;
@@ -99,20 +124,34 @@ export function PlayerClient({ roomCode }: { roomCode: string }) {
 
   if (!view) {
     return (
-      <div className="mx-auto max-w-xl space-y-6 px-4 py-10">
-        <div className="skeleton-pulse h-8 w-2/3" />
-        <div className="skeleton-pulse h-40 w-full" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton-pulse h-20 w-full" />
-          ))}
+      <main className="relative min-h-dvh">
+        <div className="fixed right-4 bottom-4 z-40">
+          <RealtimePill status={realtimeStatus} />
         </div>
-      </div>
+        <div className="mx-auto max-w-xl space-y-6 px-4 py-10">
+          <div className="skeleton-pulse h-8 w-2/3" />
+          <div className="skeleton-pulse h-40 w-full" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton-pulse h-20 w-full" />
+            ))}
+          </div>
+        </div>
+      </main>
     );
   }
 
+  // Sala encerrada antes de ser iniciada pelo professor → tratar como sala cancelada.
+  if (view.status === "encerrada" && !view.started) {
+    markClosed("A sala foi encerrada pelo professor.");
+    return null;
+  }
+
   return (
-    <main className="min-h-dvh">
+    <main className="relative min-h-dvh">
+      <div className="fixed right-4 bottom-4 z-40">
+        <RealtimePill status={realtimeStatus} />
+      </div>
       {view.status === "aguardando" && <LobbyView view={view} name={name} />}
       {view.status === "encerrada" && view.result && (
         <>
@@ -141,7 +180,7 @@ export function PlayerClient({ roomCode }: { roomCode: string }) {
           onSelect={(idx) => void handleSelect(idx)}
         />
       )}
-      {view.status === "em_andamento" && view.reveal_data && <RevealView view={view} />}
+      {view.status === "em_andamento" && view.reveal_data && <RevealView view={view} serverOffsetMs={serverOffset.current} />}
       {view.status === "em_andamento" && !view.question && (
         <div className="flex min-h-dvh items-center justify-center">
           <p className="animate-pulse text-sm text-mute">Preparando a próxima questão…</p>

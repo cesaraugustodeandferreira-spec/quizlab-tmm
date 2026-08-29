@@ -10,31 +10,43 @@ import { ConfirmModal, type ConfirmState } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Progress";
 import { Tabs } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/Toast";
-import { deleteQuiz, duplicateQuizRpc, listQuizzes, type QuizWithMeta } from "@/lib/api/quizzes";
+import { deleteQuiz, duplicateQuizRpc, listQuizzes, publishToLibrary, type QuizWithMeta } from "@/lib/api/quizzes";
+import dynamic from "next/dynamic";
+const QuizWizardModal = dynamic(() => import("@/components/teacher/QuizWizardModal").then((m) => m.QuizWizardModal), { ssr: false });
+const AIQuizModal = dynamic(() => import("@/components/teacher/AIQuizModal").then((m) => m.AIQuizModal), { ssr: false });
 import { fmtDate } from "@/lib/utils";
 import {
+  IconBookUpload,
   IconDotsVertical,
   IconListDetails,
   IconPencil,
   IconPlayerPlay,
   IconPlus,
+  IconSparkles,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { useState } from "react";
-import { useAsync } from "@/hooks/useAsync";
+import { useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import { useCachedAsync } from "@/hooks/useAsync";
 
 type Filter = "todos" | "rascunho" | "publicado";
 
 export default function QuizzesPage() {
   const toast = useToast();
+  const router = useRouter();
   const [filter, setFilter] = useState<Filter>("todos");
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [startingQuiz, setStartingQuiz] = useState<QuizWithMeta | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [aiQuizOpen, setAiQuizOpen] = useState(false);
 
-  const { data: quizzes, loading, error, reload } = useAsync(
+  const { data: quizzes, loading, error, reload } = useCachedAsync(
     () => listQuizzes(filter === "todos" ? undefined : filter),
     [filter],
+    `quizzes:${filter}`,
+    30_000,
+    "quizzes",
   );
 
   usePageHeader({
@@ -55,6 +67,16 @@ export default function QuizzesPage() {
     }
   }
 
+  async function handlePublish(id: string, title: string) {
+    try {
+      await publishToLibrary(id);
+      toast(`"${title}" publicado na Biblioteca!`, "ok");
+      void reload();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Erro ao publicar.", "bad");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -62,12 +84,19 @@ export default function QuizzesPage() {
           <h1 className="font-display text-2xl font-bold text-ink">Quizzes</h1>
           <p className="mt-0.5 text-sm text-mute">Monte, publique e aplique seus quizzes.</p>
         </div>
-        <Link
-          href="/professor/quizzes/novo"
-          className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-bright"
-        >
-          <IconPlus size={18} /> Novo quiz
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setAiQuizOpen(true)}
+            icon={<IconSparkles size={18} />}
+            className="gap-2"
+          >
+            Novo quiz (IA)
+          </Button>
+          <Button onClick={() => setWizardOpen(true)} icon={<IconPlus size={18} />}>
+            Novo quiz
+          </Button>
+        </div>
       </div>
 
       <Tabs
@@ -116,8 +145,8 @@ export default function QuizzesPage() {
 
       {!loading && !!quizzes?.length && (
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {quizzes.map((q) => (
-            <li key={q.id}>
+          {quizzes.map((q, i) => (
+            <li key={q.id} className="stagger-item" style={{ animationDelay: `${i * 35}ms` }}>
               <Card interactive className="group relative flex h-full flex-col gap-3">
                 <Link href={`/professor/quizzes/${q.id}`} className="block pr-8" aria-label={`Abrir quiz ${q.title}`}>
                   <div className="flex items-start justify-between gap-2">
@@ -147,6 +176,13 @@ export default function QuizzesPage() {
                       onClick={() => (window.location.href = `/professor/quizzes/${q.id}`)}
                     />
                     <MenuItem label="Duplicar" onClick={() => void handleDuplicate(q.id)} />
+                    {q.question_count > 0 && q.status !== "publicado" && (
+                      <MenuItem
+                        icon={<IconBookUpload size={16} />}
+                        label="Publicar na Biblioteca"
+                        onClick={() => void handlePublish(q.id, q.title)}
+                      />
+                    )}
                     {q.status === "publicado" && q.question_count > 0 && (
                       <MenuItem label="Iniciar agora" onClick={() => setStartingQuiz(q)} />
                     )}
@@ -215,19 +251,34 @@ export default function QuizzesPage() {
         />
       )}
       <ConfirmModal state={confirm} onClose={() => setConfirm(null)} />
+
+      <QuizWizardModal
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onCreated={(id) => {
+          setWizardOpen(false);
+          router.push(`/professor/quizzes/${id}`);
+        }}
+      />
+
+      <AIQuizModal
+        open={aiQuizOpen}
+        onClose={() => setAiQuizOpen(false)}
+      />
     </div>
   );
 }
 
-function MenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+function MenuItem({ label, onClick, danger, icon }: { label: string; onClick: () => void; danger?: boolean; icon?: ReactNode }) {
   return (
     <button
       role="menuitem"
       onClick={onClick}
-      className={`block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+      className={`flex w-full items-center gap-2 cursor-pointer rounded-lg px-3 py-2 text-left text-sm transition-colors ${
         danger ? "text-bad hover:bg-bad-deep" : "text-mute hover:bg-surface-2 hover:text-ink"
       }`}
     >
+      {icon}
       {label}
     </button>
   );

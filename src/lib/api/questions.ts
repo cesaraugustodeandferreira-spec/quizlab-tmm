@@ -9,17 +9,21 @@ export interface QuestionFilters {
 }
 
 function toDb(input: QuestionInput) {
-  return {
+  const db: Record<string, unknown> = {
     statement: input.statement.trim(),
     options: JSON.stringify(input.options),
     correct_index: input.correct_index,
-    subject_id: input.subject_id,
-    topic_id: input.topic_id,
+    subject_id: input.subject_id || null,
+    topic_id: input.topic_id || null,
     subtopic: input.subtopic.trim() || null,
     difficulty: input.difficulty,
-    time_override_seconds: input.time_override_seconds,
     image_url: input.image_url.trim() || null,
   };
+  // time_override_seconds has NOT NULL + default 20 in DB; omit when null to use default
+  if (input.time_override_seconds !== null && input.time_override_seconds !== undefined) {
+    db.time_override_seconds = input.time_override_seconds;
+  }
+  return db;
 }
 
 export async function listQuestions(filters: QuestionFilters = {}): Promise<QuestionRow[]> {

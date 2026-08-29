@@ -1,38 +1,53 @@
 "use client";
 
-import { IconTrophy } from "@tabler/icons-react";
+import { IconTrophy, IconListCheck } from "@tabler/icons-react";
 import type { PlayerView } from "@/types";
 import { LETTERS, pctText } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { useState } from "react";
 
 export function LobbyView({ view, name }: { view: PlayerView; name: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center px-4 py-14 text-center">
-      <span aria-hidden className="mb-6 flex gap-2">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="size-2.5 animate-bounce rounded-full bg-accent-bright"
-            style={{ animationDelay: `${i * 150}ms` }}
-          />
-        ))}
-      </span>
-      <h1 className="font-display text-3xl font-bold text-ink">Você está na sala!</h1>
-      <p className="mt-3 text-sm text-mute">
-        Olá, <strong className="text-ink">{name}</strong>. Aguarde o professor iniciar o quiz.
-      </p>
-      <dl className="mt-8 grid w-full grid-cols-2 gap-3 text-left" aria-label="Informações da sala">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center px-4 py-14 text-center">
+      <div className="w-full rounded-3xl border border-line bg-surface/70 p-8 shadow-soft">
+        <p className="text-xs font-medium tracking-wide text-mute uppercase">Sala de espera</p>
+        <h1 className="font-display mt-3 text-3xl font-bold text-balance text-ink">{view.quiz_title}</h1>
+        <p className="mt-1 text-sm text-mute">Turma {view.class_name}</p>
+
+        <p className="mt-6 text-sm text-mute">
+          Olá, <strong className="text-ink">{name}</strong>. Aguarde o professor iniciar o quiz.
+        </p>
+
+        <span aria-hidden className="mt-8 flex justify-center gap-2">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="size-2.5 animate-bounce rounded-full bg-accent-bright"
+              style={{ animationDelay: `${i * 150}ms` }}
+            />
+          ))}
+        </span>
+      </div>
+
+      <dl className="mt-6 grid w-full grid-cols-2 gap-3 text-left" aria-label="Informações da sala">
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <dt className="text-xs text-faint">Participantes</dt>
+          <dd className="tnum mt-1 text-2xl font-semibold text-ink">{view.connected_count}</dd>
+        </div>
         <div className="rounded-xl border border-line bg-surface p-4">
           <dt className="text-xs text-faint">Questões</dt>
           <dd className="tnum mt-1 text-2xl font-semibold text-ink">{view.total_questions}</dd>
         </div>
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <dt className="text-xs text-faint">Status</dt>
-          <dd className="mt-1 flex items-center gap-2 text-sm font-medium text-ok">
-            <span aria-hidden className="size-2 animate-pulse rounded-full bg-ok" />
-            Aguardando início
-          </dd>
-        </div>
       </dl>
+
+      <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm text-mute">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-bright" />
+        </span>
+        Conectado em tempo real
+      </p>
     </div>
   );
 }
@@ -48,6 +63,8 @@ export function ResultView({
 }) {
   const totalAnswered = result.correct + result.wrong + result.unanswered;
   const accuracyPct = totalAnswered ? (result.correct / totalAnswered) * 100 : null;
+  const [gabaritoOpen, setGabaritoOpen] = useState(false);
+  const hasGabarito = result.review && result.review.length > 0;
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-8 px-4 py-10">
@@ -96,10 +113,28 @@ export function ResultView({
         </section>
       )}
 
-      {result.review && result.review.length > 0 && (
-        <section aria-label="Gabarito das questões" className="space-y-2.5">
-          <h2 className="text-sm font-semibold text-mute">Gabarito</h2>
-          {result.review.map((item) => (
+      {hasGabarito && (
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setGabaritoOpen(true)}
+            className="w-full"
+            icon={<IconListCheck size={18} />}
+          >
+            Ver gabarito
+          </Button>
+        </div>
+      )}
+
+      <Modal
+        open={gabaritoOpen}
+        onClose={() => setGabaritoOpen(false)}
+        title="Gabarito"
+        size="lg"
+        description={hasGabarito ? `${result.review!.length} questões` : undefined}
+      >
+        <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto">
+          {hasGabarito && result.review!.map((item) => (
             <article key={item.position} className="rounded-xl border border-line bg-surface p-4">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm leading-snug text-ink">
@@ -122,8 +157,8 @@ export function ResultView({
               </p>
             </article>
           ))}
-        </section>
-      )}
+        </div>
+      </Modal>
     </div>
   );
 }

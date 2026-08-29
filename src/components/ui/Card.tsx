@@ -20,7 +20,7 @@ export function Card({
         "rounded-[14px] border border-line bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.3)]",
         padded && "p-5",
         interactive &&
-          "cursor-pointer transition-all duration-150 hover:border-line-strong hover:bg-surface-2",
+          "cursor-pointer transition-[border-color,background-color,box-shadow,transform] duration-[120ms] ease-out hover:border-line-strong hover:bg-surface-2 hover:shadow-[0_6px_18px_rgba(0,0,0,0.22)] hover:-translate-y-[1px] active:translate-y-0",
         className,
       )}
     >

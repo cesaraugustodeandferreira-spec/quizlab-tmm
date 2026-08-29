@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { invalidateCache } from "@/lib/cache";
 import type { ClassRoom } from "@/types";
 
 export async function listClasses(): Promise<ClassRoom[]> {
@@ -30,6 +31,7 @@ export async function createClass(input: ClassInput): Promise<ClassRoom> {
     .select()
     .single();
   if (error) throw new Error("Não foi possível criar a turma.");
+  invalidateCache("turmas");
   return data as ClassRoom;
 }
 
@@ -43,10 +45,14 @@ export async function updateClass(id: string, input: ClassInput): Promise<void> 
     })
     .eq("id", id);
   if (error) throw new Error("Não foi possível salvar a turma.");
+  invalidateCache("turmas");
 }
 
 export async function deleteClass(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.rpc("rpc_delete_class", { p_class_id: id });
   if (error) throw new Error("Não foi possível excluir a turma.");
+  invalidateCache("turmas");
+  invalidateCache("diagnosticos");
+  invalidateCache("dashboard");
 }

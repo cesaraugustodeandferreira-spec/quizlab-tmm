@@ -13,11 +13,11 @@ import { fmtDate } from "@/lib/utils";
 import type { ClassRoom } from "@/types";
 import { IconPencil, IconPlus, IconSchool, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { useAsync } from "@/hooks/useAsync";
+import { useCachedAsync } from "@/hooks/useAsync";
 
 export default function ClassesPage() {
   const toast = useToast();
-  const { data: classes, loading, error, reload } = useAsync(listClasses, []);
+  const { data: classes, loading, error, reload } = useCachedAsync(listClasses, [], "turmas", 30_000, "turmas");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRoom | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -80,8 +80,8 @@ export default function ClassesPage() {
         </Card>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {classes.map((c) => (
-            <li key={c.id}>
+          {classes.map((c, i) => (
+            <li key={c.id} className="stagger-item" style={{ animationDelay: `${i * 35}ms` }}>
               <Card interactive className="flex h-full flex-col gap-3">
                 <button
                   onClick={() => {

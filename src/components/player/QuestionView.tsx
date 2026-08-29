@@ -4,6 +4,7 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { BRAND } from "@/config/brand";
 import { LETTERS } from "@/lib/utils";
 import type { PlayerView } from "@/types";
+import { TimerRing } from "@/components/quiz/TimerRing";
 import { IconCheck, IconX } from "@tabler/icons-react";
 
 interface QuestionViewProps {
@@ -187,12 +188,17 @@ function OptionButton({
 
 export function RevealView({
   view,
+  serverOffsetMs = 0,
 }: {
   view: PlayerView;
+  serverOffsetMs?: number;
 }) {
   const reveal = view.reveal_data;
   if (!reveal) return null;
   const mine = reveal.my;
+  const transitionMs = view.transition_ends_at ? new Date(view.transition_ends_at).getTime() : null;
+  const left = useCountdown(transitionMs, serverOffsetMs);
+  const inTransition = view.phase === "transition" && transitionMs !== null;
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-10 text-center">
       <p className="text-xs font-medium tracking-wide text-mute uppercase">Questão {view.current_index}</p>
@@ -234,7 +240,14 @@ export function RevealView({
         </p>
       )}
 
-      <p className="mt-10 animate-pulse text-sm text-faint">Aguardando o professor…</p>
+      {inTransition ? (
+        <div className="mt-10 flex flex-col items-center gap-2">
+          <TimerRing secondsLeft={left} totalSeconds={10} size="md" />
+          <p className="text-sm text-mute">Próxima questão em {Math.ceil(left / 1000)}s…</p>
+        </div>
+      ) : (
+        <p className="mt-10 animate-pulse text-sm text-faint">Aguardando o professor…</p>
+      )}
     </div>
   );
 }

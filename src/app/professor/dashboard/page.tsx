@@ -19,11 +19,33 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { useAsync } from "@/hooks/useAsync";
+import { useCachedAsync } from "@/hooks/useAsync";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useRef } from "react";
+import { PulseValue } from "@/components/ui/PulseValue";
 
 export default function DashboardPage() {
   const { profile } = useAuth();
-  const dash = useAsync(fetchDashboard, []);
+  const dash = useCachedAsync(fetchDashboard, [], "dashboard", 30_000, "dashboard");
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const scheduleReload = () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(() => void dash.reload(), 4000);
+    };
+    const ch = supabase
+      .channel("dash-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "answers" }, () => scheduleReload())
+      .on("postgres_changes", { event: "*", schema: "public", table: "quiz_sessions" }, () => scheduleReload())
+      .subscribe();
+    return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      void supabase.removeChannel(ch);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   usePageHeader({
     breadcrumb: [{ label: "Dashboard" }],
@@ -87,8 +109,8 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <ul className="divide-y divide-line">
-                    {dash.data.recent.map((r) => (
-                      <li key={r.session_id}>
+                    {dash.data.recent.map((r, i) => (
+                      <li key={r.session_id} className="stagger-item" style={{ animationDelay: `${i * 40}ms` }}>
                         <Link
                           href={`/professor/diagnosticos/${r.session_id}`}
                           className="group flex items-center gap-3 py-3"
@@ -136,18 +158,33 @@ export default function DashboardPage() {
                     />
                   </div>
                 ) : (
-                  <ul className="space-y-2.5">
-                    {dash.data.attention.map((a, i) => (
-                      <li key={`${a.topic}-${a.class_name}-${i}`} className="rounded-xl border border-line bg-surface p-3.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="text-sm leading-snug text-ink">
-                            <strong>{a.topic}</strong> apresentou apenas{" "}
-                            <strong className="text-bad">{pctText(a.pct)}</strong> de acertos na turma {a.class_name}
+                  <div className="space-y-4">
+                    {(() => {
+                      const groups = new Map<string, { topic: string; pct: number | null }[]>();
+                      for (const a of dash.data.attention) {
+                        const arr = groups.get(a.class_name) ?? [];
+                        arr.push({ topic: a.topic, pct: a.pct });
+                        groups.set(a.class_name, arr);
+                      }
+                      return [...groups.entries()].map(([className, items]) => (
+                        <div key={className} className="rounded-xl border border-line bg-surface p-4">
+                          <p className="mb-2.5 flex items-center gap-2 text-sm font-semibold text-warn">
+                            <IconSchool size={16} aria-hidden /> Turma {className}
                           </p>
+                          <ul className="space-y-2">
+                            {items.map((it, i) => (
+                              <li key={`${it.topic}-${i}`} className="rounded-lg border border-line bg-surface-2 p-3">
+                                <p className="text-sm leading-snug text-ink">
+                                  <strong>{it.topic}</strong> apresentou apenas{" "}
+                                  <strong className="text-bad">{pctText(it.pct)}</strong> de acertos
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
+                      ));
+                    })()}
+                  </div>
                 )}
                 {!!dash.data.recent.length && (
                   <Link
@@ -183,7 +220,9 @@ function StatCard({
         {icon}
       </span>
       <span>
-        <span className="tnum block text-3xl leading-none font-bold text-ink">{value}</span>
+        <span className="tnum block text-3xl leading-none font-bold text-ink">
+          <PulseValue value={value} />
+        </span>
         <span className="mt-1.5 block text-xs text-mute">{label}</span>
       </span>
     </Card>

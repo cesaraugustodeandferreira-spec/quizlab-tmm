@@ -75,9 +75,11 @@ export interface SessionRow {
   class_id: string;
   room_code: string;
   status: SessionStatus;
+  phase: SessionPhase;
   current_index: number;
   question_started_at: string | null;
   question_seconds: number | null;
+  transition_ends_at: string | null;
   reveal_current: boolean;
   started_at: string | null;
   ended_at: string | null;
@@ -87,6 +89,8 @@ export interface SessionRow {
   created_by: string | null;
   created_at: string;
 }
+
+export type SessionPhase = "question" | "transition" | null;
 
 export interface SessionStudentRow {
   id: string;
@@ -134,6 +138,7 @@ export interface QuizInput {
   show_ranking: boolean;
   show_score: boolean;
   show_correct_answers: boolean;
+  is_shared: boolean;
 }
 
 export interface JoinResult {
@@ -150,10 +155,16 @@ export interface PlayerView {
   status: SessionStatus;
   current_index: number;
   total_questions: number;
+  connected_count: number;
   server_now: string;
   show_ranking: boolean;
   show_score: boolean;
   show_correct_answers: boolean;
+  phase: SessionPhase;
+  transition_ends_at: string | null;
+  started: boolean;
+  quiz_title: string;
+  class_name: string;
   question: {
     id: string;
     label: number;

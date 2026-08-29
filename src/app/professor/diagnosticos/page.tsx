@@ -1,8 +1,10 @@
 "use client";
 
 import { usePageHeader } from "@/components/layout/ProfessorShell";
-import { DonutStat, BarList } from "@/components/charts/Charts";
-import { MasteryBadge } from "@/components/diagnostics/DiagnosticParts";
+import dynamic from "next/dynamic";
+const DonutStat = dynamic(() => import("@/components/charts/Charts").then((m) => m.DonutStat), { ssr: false });
+const BarList = dynamic(() => import("@/components/charts/Charts").then((m) => m.BarList), { ssr: false });
+const MasteryBadge = dynamic(() => import("@/components/diagnostics/DiagnosticParts").then((m) => m.MasteryBadge), { ssr: false });
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -27,7 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useAsync } from "@/hooks/useAsync";
+import { useCachedAsync } from "@/hooks/useAsync";
 import { buildCsv, downloadCsv } from "@/lib/csv";
 
 function DiagnosticsContent() {
@@ -131,8 +133,8 @@ function ClassPickerStep({
         </Card>
       ) : (
         <ul className="space-y-2" role="listbox" aria-label="Turmas">
-          {classes.map((c) => (
-            <li key={c.id}>
+          {classes.map((c, i) => (
+            <li key={c.id} className="stagger-item" style={{ animationDelay: `${i * 30}ms` }}>
               <button
                 role="option"
                 aria-selected={false}
@@ -175,7 +177,7 @@ function ClassAggregateStep({
   const [to, setTo] = useState("");
 
   const subjectId = subjectFilter === "all" ? null : subjectFilter;
-  const diag = useAsync(() => fetchClassDiagnostics(classId, subjectId), [classId, subjectId]);
+  const diag = useCachedAsync(() => fetchClassDiagnostics(classId, subjectId), [classId, subjectId], `diag:${classId}:${subjectId ?? "all"}`, 30_000, "diagnosticos");
 
   const [quizFilterOptions, setQuizFilterOptions] = useState<string[]>([]);
   useEffect(() => {
@@ -309,8 +311,8 @@ function ClassAggregateStep({
           </Card>
         ) : (
           <ul className="space-y-3">
-            {filteredHistory.map((h) => (
-              <li key={h.session_id}>
+            {filteredHistory.map((h, i) => (
+              <li key={h.session_id} className="stagger-item" style={{ animationDelay: `${i * 30}ms` }}>
                 <Card interactive className="flex flex-wrap items-center gap-4">
                   <button
                     onClick={() => onSelectSession(h.session_id)}

@@ -49,7 +49,7 @@ export default function RegisterPage() {
         );
         return;
       }
-      setSuccess(!data.session);
+      setSuccess(true);
       if (data.session) window.location.href = "/professor/dashboard";
     } finally {
       setLoading(false);
@@ -69,8 +69,8 @@ export default function RegisterPage() {
           {success ? (
             <div className="space-y-4 text-center" role="status">
               <p className="text-sm leading-relaxed text-mute">
-                Conta criada! Enviamos um link de confirmação para{" "}
-                <strong className="text-ink">{email}</strong>. Confirme o e-mail para acessar a plataforma.
+                Conta criada com sucesso! Enviamos um link de confirmação para o seu e-mail.
+                Confirme para poder fazer login.
               </p>
               <Link
                 href="/login"

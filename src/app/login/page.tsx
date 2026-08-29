@@ -33,13 +33,15 @@ function LoginForm() {
         password,
       });
       if (error) {
-        setError(
-          error.message.includes("Invalid login")
-            ? "E-mail ou senha incorretos."
-            : error.message.includes("confirmed")
-              ? "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada."
-              : "Não foi possível entrar. Tente novamente.",
-        );
+        const msg = (error.message ?? "").toLowerCase();
+        const code = (error.code ?? "").toLowerCase();
+        if (code.includes("email_not_confirmed") || msg.includes("not confirmed") || msg.includes("email not verified")) {
+          setError("Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada (e o spam).");
+        } else if (msg.includes("invalid login") || msg.includes("invalid credentials")) {
+          setError("E-mail ou senha incorretos.");
+        } else {
+          setError("Não foi possível entrar. Tente novamente.");
+        }
         return;
       }
       router.push(redirectTo);

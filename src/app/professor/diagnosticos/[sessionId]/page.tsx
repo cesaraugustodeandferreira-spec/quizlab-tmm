@@ -1,9 +1,11 @@
 "use client";
 
 import { usePageHeader } from "@/components/layout/ProfessorShell";
-import { BarList, DonutStat } from "@/components/charts/Charts";
-import { QuestionBreakdownModal } from "@/components/diagnostics/QuestionBreakdown";
-import { Timeline } from "@/components/diagnostics/DiagnosticParts";
+import dynamic from "next/dynamic";
+const BarList = dynamic(() => import("@/components/charts/Charts").then((m) => m.BarList), { ssr: false });
+const DonutStat = dynamic(() => import("@/components/charts/Charts").then((m) => m.DonutStat), { ssr: false });
+const QuestionBreakdownModal = dynamic(() => import("@/components/diagnostics/QuestionBreakdown").then((m) => m.QuestionBreakdownModal), { ssr: false });
+const Timeline = dynamic(() => import("@/components/diagnostics/DiagnosticParts").then((m) => m.Timeline), { ssr: false });
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
@@ -17,7 +19,7 @@ import type { QuestionDiag } from "@/types";
 import { IconArrowLeft, IconChartBar, IconDownload, IconTrophy } from "@tabler/icons-react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAsync } from "@/hooks/useAsync";
+import { useCachedAsync } from "@/hooks/useAsync";
 
 export default function SessionDiagnosticsPage() {
   const params = useParams<{ sessionId: string }>();
@@ -27,7 +29,7 @@ export default function SessionDiagnosticsPage() {
   const returnClass = searchParams.get("returnClass");
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionDiag | null>(null);
 
-  const diag = useAsync(() => fetchSessionDiagnostics(sessionId), [sessionId]);
+  const diag = useCachedAsync(() => fetchSessionDiagnostics(sessionId), [sessionId], `session-diag:${sessionId}`, 30_000, "diagnosticos");
 
   usePageHeader({
     breadcrumb: [

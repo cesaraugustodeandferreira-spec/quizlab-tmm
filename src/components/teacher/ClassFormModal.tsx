@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { createClass, updateClass } from "@/lib/api/classes";
+import { useToast } from "@/components/ui/Toast";
 import type { ClassRoom } from "@/types";
 import { useState } from "react";
 
@@ -22,6 +23,7 @@ export function ClassFormModal({
   const [gradeYear, setGradeYear] = useState(initial?.grade_year ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +40,7 @@ export function ClassFormModal({
       };
       if (initial) await updateClass(initial.id, payload);
       else await createClass(payload);
+      toast(initial ? "Alterações salvas." : "Turma criada!", "ok");
       onSaved();
       onClose();
     } catch (err) {

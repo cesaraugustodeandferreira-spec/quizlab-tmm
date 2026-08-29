@@ -41,12 +41,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setState({ user: null, profile: null, loading: false });
         return;
       }
-      const { data: profileData } = await supabase
+      let { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", data.user.id)
         .maybeSingle();
       if (!active) return;
+
+      // Safety net: if profile is missing (trigger failed), create it now
+      if (!profileData) {
+        console.warn(`[AUTH] Profile missing for user ${data.user.id}, creating...`);
+        const { data: created } = await supabase
+          .from("profiles")
+          .insert({
+            id: data.user.id,
+            full_name: data.user.user_metadata?.full_name || "Professor",
+            email: data.user.email,
+            school: data.user.user_metadata?.school || null,
+            role: "professor",
+          })
+          .select("*")
+          .single();
+        if (created) profileData = created;
+      }
+
       setState({
         user: { id: data.user.id, email: data.user.email },
         profile: (profileData as Profile) ?? null,

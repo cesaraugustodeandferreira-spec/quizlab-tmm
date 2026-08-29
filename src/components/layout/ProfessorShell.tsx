@@ -114,7 +114,7 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
-          <main className="pb-28 sm:pb-12">{children}</main>
+          <main key={pathname} className="animate-route-enter pb-28 sm:pb-12">{children}</main>
         </div>
       </div>
     </HeaderContext.Provider>

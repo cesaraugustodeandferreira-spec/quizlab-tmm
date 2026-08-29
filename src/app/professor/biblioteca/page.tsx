@@ -12,11 +12,11 @@ import { duplicateQuizRpc } from "@/lib/api/quizzes";
 import { fmtDate } from "@/lib/utils";
 import { IconBooks, IconCopy as CopyIcon, IconListCheck } from "@tabler/icons-react";
 import { useState } from "react";
-import { useAsync } from "@/hooks/useAsync";
+import { useCachedAsync } from "@/hooks/useAsync";
 
 export default function LibraryPage() {
   const toast = useToast();
-  const library = useAsync(fetchLibrary, []);
+  const library = useCachedAsync(fetchLibrary, [], "biblioteca", 60_000, "biblioteca");
   const [usingId, setUsingId] = useState<string | null>(null);
 
   usePageHeader({
@@ -44,7 +44,7 @@ export default function LibraryPage() {
       <div>
         <h1 className="font-display text-2xl font-bold text-ink">Biblioteca</h1>
         <p className="mt-0.5 text-sm text-mute">
-          Quizzes compartilhados por outros professores da escola — duplique e adapte para a sua turma.
+          Quizzes publicados por você e por outros professores da escola — duplique e adapte para a sua turma.
         </p>
       </div>
 
@@ -70,7 +70,7 @@ export default function LibraryPage() {
           <EmptyState
             icon={<IconBooks size={36} stroke={1.4} />}
             title="A biblioteca está vazia por enquanto"
-            description="Quando outros professores compartilharem quizzes publicados, eles aparecerão aqui."
+            description="Publique um quiz pelo menu de ações para vê-lo aqui, junto com os de outros professores."
             action={
               <Button variant="outline" onClick={() => void library.reload()}>
                 Atualizar
@@ -80,8 +80,8 @@ export default function LibraryPage() {
         </Card>
       ) : (
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {library.data.map((item) => (
-            <li key={item.id}>
+          {library.data.map((item, i) => (
+            <li key={item.id} className="stagger-item" style={{ animationDelay: `${i * 35}ms` }}>
               <Card className="flex h-full flex-col gap-3">
                 <h2 className="font-display line-clamp-2 text-lg leading-snug font-semibold text-ink">
                   {item.title}

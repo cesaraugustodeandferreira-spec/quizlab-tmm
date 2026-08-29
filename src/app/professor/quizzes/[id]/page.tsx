@@ -2,15 +2,13 @@
 
 import { usePageHeader } from "@/components/layout/ProfessorShell";
 import { QuestionFormModal } from "@/components/teacher/QuestionFormModal";
+import { QuizWizardModal } from "@/components/teacher/QuizWizardModal";
 import { StartSessionModal } from "@/components/teacher/StartSessionModal";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Field, Input, Select, Textarea } from "@/components/ui/Input";
-import { SubjectSelect } from "@/components/teacher/SubjectSelect";
 import { Skeleton, Progress } from "@/components/ui/Progress";
-import { Toggle } from "@/components/ui/Toggle";
 import { useToast } from "@/components/ui/Toast";
 import { useAsync } from "@/hooks/useAsync";
 import { listTopics } from "@/lib/api/taxonomy";
@@ -23,9 +21,10 @@ import {
   IconArrowUp,
   IconCopy as CopyIcon,
   IconDatabase,
+  IconDeviceFloppy,
   IconPlayerPlay,
   IconPlus,
-  IconDeviceFloppy,
+  IconSettings,
   IconTrash,
 } from "@tabler/icons-react";
 import { useParams } from "next/navigation";
@@ -53,6 +52,7 @@ export default function QuizEditorPage() {
 
   const [questionModal, setQuestionModal] = useState<{ open: boolean; editing: QuestionRow | null }>({ open: false, editing: null });
   const [startOpen, setStartOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
 
   useEffect(() => {
@@ -102,6 +102,7 @@ export default function QuizEditorPage() {
         show_ranking: showRanking,
         show_score: showScore,
         show_correct_answers: showCorrect,
+        is_shared: isShared,
       });
       if (extra?.status) await setQuizStatus(quizId, extra.status);
       return true;
@@ -250,145 +251,79 @@ export default function QuizEditorPage() {
               Salvar alterações
             </Button>
           )}
+          <Button variant="ghost" icon={<IconSettings size={17} />} onClick={() => setSettingsOpen(true)}>
+            Editar configurações
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_1.35fr]">
-        <Card className="h-fit space-y-4">
-          <CardTitle>Configurações do quiz</CardTitle>
-          <Field label="Nome do quiz" htmlFor="quiz-title" required>
-            <Input id="quiz-title" placeholder="Ex.: Revisão de Frações" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </Field>
-          <Field label="Descrição (opcional)" htmlFor="quiz-desc">
-            <Textarea id="quiz-desc" placeholder="Contexto para você e para os alunos…" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Disciplina" htmlFor="quiz-subject">
-              <SubjectSelect
-                id="quiz-subject"
-                value={subjectId ?? ""}
-                onChange={(id) => {
-                  setSubjectId(id || null);
-                  setTopicId(null);
-                }}
-              />
-            </Field>
-            <Field label="Tema principal" htmlFor="quiz-topic">
-              <Select
-                id="quiz-topic"
-                value={topicId ?? ""}
-                onChange={(e) => setTopicId(e.target.value || null)}
-                disabled={!topics.length}
-              >
-                <option value="">Sem tema</option>
-                {topics.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Field label={`Tempo padrão por questão: ${defaultTime}s`} htmlFor="quiz-time">
-            <input
-              id="quiz-time"
-              type="range"
-              min={10}
-              max={120}
-              step={5}
-              value={defaultTime}
-              onChange={(e) => setDefaultTime(Number(e.target.value))}
-              className="w-full cursor-pointer accent-[#2563eb]"
-            />
-          </Field>
+      <div className="space-y-4">
+        <Card>
+          <CardTitle right={<span className="tnum text-sm font-semibold text-ink">{totalQs}</span>}>Questões</CardTitle>
 
-          <div className="space-y-2 border-t border-line pt-4">
-            <p className="text-xs font-semibold tracking-wide text-faint uppercase">O que o aluno vê no resultado</p>
-            <Toggle checked={showScore} onChange={setShowScore} label="Mostrar pontuação" hint="Pontos ganhos com bônus de velocidade." />
-            <Toggle checked={showRanking} onChange={setShowRanking} label="Mostrar ranking" hint="Top jogadores ao final do quiz." />
-            <Toggle checked={showCorrect} onChange={setShowCorrect} label="Mostrar gabarito" hint="Respostas corretas após o fim." />
-            <Toggle
-              checked={isShared}
-              onChange={async (v) => {
-                setIsShared(v);
-                const ok = await persistMeta();
-                if (!ok) setIsShared(!v);
-                else toast(v ? "Quiz compartilhado na Biblioteca." : "Quiz removido da Biblioteca.", "ok");
-              }}
-              label="Compartilhar na Biblioteca"
-              hint="Outros professores poderão usar este quiz."
+          {totalQs > 0 && published && (
+            <Progress value={Math.min(totalQs, 20)} max={20} className="mb-4" label={`${totalQs} questões`} />
+          )}
+
+          {!totalQs ? (
+            <EmptyState
+              icon={<IconDatabase size={34} stroke={1.4} />}
+              title="Nenhuma questão neste quiz"
+              description="Crie uma nova questão ou puxe do seu Banco de Questões."
             />
+          ) : (
+            <ol className="space-y-2.5">
+              {detail.questions.map((q, i) => (
+                <li key={q.id} className="group rounded-xl border border-line bg-surface-2/40 p-3.5 transition-colors hover:border-line-strong">
+                  <div className="flex items-start gap-3">
+                    <span className="tnum mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-xs font-bold text-mute">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm leading-snug text-ink">{q.statement}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Badge tone="neutral">{DIFFICULTY_LABELS[q.difficulty]}</Badge>
+                        <Badge tone="neutral">
+                          Correta: {LETTERS[q.correct_index]}
+                        </Badge>
+                        {q.time_override_seconds && <Badge tone="accent">{q.time_override_seconds}s</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                      <IconBtn label="Mover para cima" disabled={i === 0} onClick={() => void handleMove(i, -1)}>
+                        <IconArrowUp size={15} />
+                      </IconBtn>
+                      <IconBtn label="Mover para baixo" disabled={i === totalQs - 1} onClick={() => void handleMove(i, 1)}>
+                        <IconArrowDown size={15} />
+                      </IconBtn>
+                      <IconBtn label="Editar questão" onClick={() => setQuestionModal({ open: true, editing: q })}>
+                        ✎
+                      </IconBtn>
+                      <IconBtn label="Duplicar questão" onClick={() => void handleDuplicateQuestion(q)}>
+                        <CopyIcon size={15} />
+                      </IconBtn>
+                      <IconBtn label="Remover do quiz" danger onClick={() => void handleRemove(q.id)}>
+                        <IconTrash size={15} />
+                      </IconBtn>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+            <Button size="sm" icon={<IconPlus size={16} />} onClick={() => setQuestionModal({ open: true, editing: null })}>
+              Nova questão
+            </Button>
           </div>
         </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <CardTitle right={<span className="tnum text-sm font-semibold text-ink">{totalQs}</span>}>Questões</CardTitle>
-
-            {totalQs > 0 && published && (
-              <Progress value={Math.min(totalQs, 20)} max={20} className="mb-4" label={`${totalQs} questões`} />
-            )}
-
-            {!totalQs ? (
-              <EmptyState
-                icon={<IconDatabase size={34} stroke={1.4} />}
-                title="Nenhuma questão neste quiz"
-                description="Crie uma nova questão ou puxe do seu Banco de Questões."
-              />
-            ) : (
-              <ol className="space-y-2.5">
-                {detail.questions.map((q, i) => (
-                  <li key={q.id} className="group rounded-xl border border-line bg-surface-2/40 p-3.5 transition-colors hover:border-line-strong">
-                    <div className="flex items-start gap-3">
-                      <span className="tnum mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface text-xs font-bold text-mute">
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-sm leading-snug text-ink">{q.statement}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge tone="neutral">{DIFFICULTY_LABELS[q.difficulty]}</Badge>
-                          <Badge tone="neutral">
-                            Correta: {LETTERS[q.correct_index]}
-                          </Badge>
-                          {q.time_override_seconds && <Badge tone="accent">{q.time_override_seconds}s</Badge>}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-                        <IconBtn label="Mover para cima" disabled={i === 0} onClick={() => void handleMove(i, -1)}>
-                          <IconArrowUp size={15} />
-                        </IconBtn>
-                        <IconBtn label="Mover para baixo" disabled={i === totalQs - 1} onClick={() => void handleMove(i, 1)}>
-                          <IconArrowDown size={15} />
-                        </IconBtn>
-                        <IconBtn label="Editar questão" onClick={() => setQuestionModal({ open: true, editing: q })}>
-                          ✎
-                        </IconBtn>
-                        <IconBtn label="Duplicar questão" onClick={() => void handleDuplicateQuestion(q)}>
-                          <CopyIcon size={15} />
-                        </IconBtn>
-                        <IconBtn label="Remover do quiz" danger onClick={() => void handleRemove(q.id)}>
-                          <IconTrash size={15} />
-                        </IconBtn>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-              <Button size="sm" icon={<IconPlus size={16} />} onClick={() => setQuestionModal({ open: true, editing: null })}>
-                Nova questão
-              </Button>
-            </div>
-          </Card>
-
-          {!published && (
-            <p className="px-1 text-xs leading-relaxed text-faint">
-              Publique o quiz para liberá-lo na Biblioteca e permitir iniciar salas ao vivo.
-            </p>
-          )}
-        </div>
+        {!published && (
+          <p className="px-1 text-xs leading-relaxed text-faint">
+            Publique o quiz para liberá-lo na Biblioteca e permitir iniciar salas ao vivo.
+          </p>
+        )}
       </div>
 
       {questionModal.open && (
@@ -420,6 +355,16 @@ export default function QuizEditorPage() {
 
       {startOpen && (
         <StartSessionModal open={startOpen} onClose={() => setStartOpen(false)} quizId={quizId} quizTitle={detail.title} />
+      )}
+
+      {settingsOpen && (
+        <QuizWizardModal
+          open={settingsOpen}
+          quizId={quizId}
+          initial={detail}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={() => void quiz.reload()}
+        />
       )}
     </div>
   );
