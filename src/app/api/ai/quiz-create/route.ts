@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 interface CreateQuizRequest {
   title: string;
@@ -279,12 +279,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`[AI SAVE] ${requestId} start: user=${user.id}, questions=${questions.length}, title="${quizData.title}"`);
 
+    // Service-role client bypasses RLS for batch subject/topic resolution
+    // (RLS restricts visibility to own + global subjects, but we need to see all for resolution)
+    const svcClient = createServiceClient();
+
     // --- Batch resolve subjects ---
     const allSubjectRawIds = [
       quizData.subject_id,
       ...questions.map((q) => q.subject_id),
     ];
-    const subjectMap = await batchResolveSubjects(supabase, allSubjectRawIds, user.id);
+    const subjectMap = await batchResolveSubjects(svcClient, allSubjectRawIds, user.id);
     const finalQuizSubjectId = subjectMap.get(quizData.subject_id) ?? null;
 
     console.log(`[AI SAVE] ${requestId} subjects resolved: ${subjectMap.size} entries, quiz subject=${finalQuizSubjectId}`);
@@ -307,7 +311,7 @@ export async function POST(request: NextRequest) {
         };
       }),
     ];
-    const topicMap = await batchResolveTopics(supabase, topicEntries);
+    const topicMap = await batchResolveTopics(svcClient, topicEntries);
     const finalQuizTopicId = topicMap.get(`quiz|${quizData.topic_id}|${quizData.subject_id}`) ?? null;
 
     console.log(`[AI SAVE] ${requestId} topics resolved: ${topicMap.size} entries, quiz topic=${finalQuizTopicId}`);
