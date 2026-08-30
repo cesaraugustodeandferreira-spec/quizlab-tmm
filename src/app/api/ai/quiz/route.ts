@@ -39,13 +39,15 @@ REGRAS CRÍTICAS:
 6. Tempo: null ou 5-600 segundos.
 7. Máximo 30 questões.
 8. Se não conseguir gerar questão válida, descarte-a e informe.
+9. subject_id: use EXATAMENTE o UUID listado abaixo para a disciplina. NÃO invente UUIDs. Se a disciplina não estiver na lista, use o UUID da mais parecida.
+10. topic_id: use EXATAMENTE o UUID listado abaixo para o tema, ou null se não houver tema correspondente. NÃO invente UUIDs.
 
 DISCIPLINAS EXISTENTES:
 ${subjectsList}
 TEMAS EXISTENTES:
 ${topicsList}
 FORMATO SAIDA JSON:
-{"quiz":{"title":"string","description":"string","subject_id":"uuid","topic_id":"uuid ou null","default_time_seconds":30,"questions":[{"statement":"Enunciado","options":["A","B","C","D"],"correct_index":0,"subject_id":"uuid","topic_id":"uuid ou null","subtopic":"Tema específico","difficulty":"facil|media|dificil","time_override_seconds":null,"image_url":""}]},"warnings":["aviso opcional"]}`;
+{"quiz":{"title":"string","description":"string","subject_id":"uuid da disciplina listada acima","topic_id":"uuid do tema listado acima ou null","default_time_seconds":30,"questions":[{"statement":"Enunciado","options":["A","B","C","D"],"correct_index":0,"subject_id":"uuid da disciplina listada acima","topic_id":"uuid do tema listado acima ou null","subtopic":"Tema específico","difficulty":"facil|media|dificil","time_override_seconds":null,"image_url":""}]},"warnings":["aviso opcional"]}`;
 }
 
 function shuffleOptions(options: [string, string, string, string], correctIndex: number): { options: [string, string, string, string]; correctIndex: number } {
@@ -183,6 +185,10 @@ export async function POST(request: NextRequest) {
     const responseText = await callGemini(messages, systemPrompt);
     const parsed = parseJSONResponse(responseText);
     if (!parsed) return NextResponse.json({ error: "Resposta da IA inválida. Tente novamente." }, { status: 500 });
+
+    // Log what the AI returned for subject_id to diagnose resolution issues
+    console.log(`[AI GEN] quiz subject_id="${parsed.quiz.subject_id}", questions subject_ids:`, parsed.quiz.questions.map((q: any) => q.subject_id));
+
     const validatedQuestions: GeneratedQuestion[] = [];
     const warnings: string[] = [];
     for (let i = 0; i < parsed.quiz.questions.length; i++) {

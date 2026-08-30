@@ -65,6 +65,8 @@ async function batchResolveSubjects(
     }
   }
 
+  console.log(`[AI SAVE] batchResolveSubjects input: ${rawIds.length} rawIds, ${uuidsToCheck.size} uuids, ${namesToCheck.size} names`);
+
   // 1. Batch check existing UUIDs
   if (uuidsToCheck.size > 0) {
     const { data, error } = await supabase.from("subjects").select("id").in("id", [...uuidsToCheck]);
@@ -72,10 +74,21 @@ async function batchResolveSubjects(
     if (data) {
       for (const row of data) result.set(row.id, row.id);
     }
+    // Find UUIDs that weren't found — they may be hallucinated by the AI
+    const unresolvedUuids = [...uuidsToCheck].filter((id) => !result.has(id));
+    if (unresolvedUuids.length > 0) {
+      console.log(`[AI SAVE] batchResolveSubjects: ${unresolvedUuids.length} UUIDs not found in DB, will try name fallback`);
+      for (const id of unresolvedUuids) {
+        // Try to find by ID with name — if the AI hallucinated a UUID, we can't recover by name
+        // because we don't have the name. Add a placeholder so we can report it clearly.
+        // The caller will need to handle this.
+        console.log(`[AI SAVE] batchResolveSubjects: unresolved UUID "${id}" — no name available for fallback`);
+      }
+    }
+    console.log(`[AI SAVE] batchResolveSubjects uuid lookup: found ${data?.length ?? 0}/${uuidsToCheck.size}`);
   }
 
   // 2. Batch check existing names (GLOBAL — any teacher or null teacher_id)
-  //    Because subjects.name has a GLOBAL unique constraint.
   if (namesToCheck.size > 0) {
     const { data, error } = await supabase.from("subjects").select("id, name");
     if (error) logError("batchResolveSubjects:select_names", error);
@@ -86,29 +99,45 @@ async function batchResolveSubjects(
         if (rawId) result.set(rawId, row.id);
       }
     }
+    const unmatchedNames = [...namesToCheck].filter(([n]) => !data?.some((r: any) => r.name.toLowerCase().trim() === n));
+    if (unmatchedNames.length > 0) {
+      console.log(`[AI SAVE] batchResolveSubjects: ${unmatchedNames.length} names not found, will create:`, unmatchedNames.map(([n, raw]) => `"${raw}" (normalized: "${n}")`));
+    }
   }
 
   // 3. Create missing subjects (sequentially, with error handling per item)
   for (const [normalized, raw] of namesToCheck) {
     if (result.has(raw)) continue;
     const name = raw.length < 60 ? humanizeSlug(raw) : raw.slice(0, 60);
+    console.log(`[AI SAVE] batchResolveSubjects creating: "${name}" (raw="${raw}")`);
     const { data: created, error: createErr } = await supabase
       .from("subjects")
       .insert({ teacher_id: teacherId, name })
       .select("id")
       .single();
     if (createErr) {
-      // Unique violation = another teacher/global already has this name; find it
       if (createErr.code === "23505") {
+        console.log(`[AI SAVE] batchResolveSubjects unique violation for "${name}", searching existing...`);
         const { data: existing } = await supabase.from("subjects").select("id").ilike("name", name).single();
         if (existing) {
+          console.log(`[AI SAVE] batchResolveSubjects found existing after 23505: ${existing.id}`);
           result.set(raw, existing.id);
           continue;
         }
+        console.log(`[AI SAVE] batchResolveSubjects 23505 but no existing found for "${name}"`);
       }
       logError(`batchResolveSubjects:create:${name}`, createErr);
     }
-    if (created) result.set(raw, created.id);
+    if (created) {
+      console.log(`[AI SAVE] batchResolveSubjects created: "${name}" -> ${created.id}`);
+      result.set(raw, created.id);
+    }
+  }
+
+  // Report any unresolved entries
+  const unresolved = rawIds.filter((raw) => raw && !result.has(raw));
+  if (unresolved.length > 0) {
+    console.error(`[AI SAVE] batchResolveSubjects UNRESOLVED:`, unresolved);
   }
 
   return result;
@@ -300,8 +329,12 @@ export async function POST(request: NextRequest) {
     // Check for null subject_id (would cause FK violation)
     const nullSubjects = normalizedQuestions.filter((q) => !q.subject_id);
     if (nullSubjects.length > 0) {
-      console.error(`[AI SAVE] ${requestId} FAIL: ${nullSubjects.length} questions have null subject_id after resolution`);
-      return NextResponse.json({ error: "Erro interno: disciplina não resolvida para algumas questões" }, { status: 500 });
+      const nullDetails = nullSubjects.map((q) => ({
+        statement: q.statement?.slice(0, 80),
+        original_subject_id: questions[normalizedQuestions.indexOf(q)]?.subject_id,
+      }));
+      console.error(`[AI SAVE] ${requestId} FAIL: ${nullSubjects.length} questions have null subject_id after resolution:`, nullDetails);
+      return NextResponse.json({ error: `Erro interno: disciplina não resolvida para ${nullSubjects.length} questão(ões). Tente novamente.`, details: nullDetails }, { status: 500 });
     }
 
     // 1. Criar o quiz
