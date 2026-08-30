@@ -22,6 +22,12 @@ interface CreateQuizRequest {
     time_override_seconds: number | null;
     image_url: string;
   }[];
+  _resolved?: {
+    subjectIdMap: Record<string, string>;
+    subjectsToCreate: { raw: string; name: string }[];
+    topicIdMap: Record<string, string>;
+    topicsToCreate: { key: string; name: string; subjectId: string }[];
+  };
 }
 
 function isValidUuid(v: string | null | undefined): boolean {
@@ -44,7 +50,8 @@ function logError(context: string, error: any) {
 
 /**
  * Busca subjects do banco em lote.
- * A tabela subjects tem UNIQUE GLOBAL em name — checa todos os professores + globais.
+ * Subjects tem UNIQUE(teacher_id, name) — busca por teacher-owned + globais.
+ * Usado apenas no path manual (sem _resolved).
  */
 async function batchResolveSubjects(
   supabase: any,
@@ -296,42 +303,109 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateQuizRequest = await request.json();
-    const { questions, ...quizData } = body;
+    const { questions, _resolved, ...quizData } = body;
 
-    console.log(`[AI SAVE] ${requestId} start: user=${user.id}, questions=${questions.length}, title="${quizData.title}"`);
+    console.log(`[AI SAVE] ${requestId} start: user=${user.id}, questions=${questions.length}, title="${quizData.title}", preResolved=${!!_resolved}`);
 
-    // --- Batch resolve subjects ---
-    const allSubjectRawIds = [
-      quizData.subject_id,
-      ...questions.map((q) => q.subject_id),
-    ];
-    const subjectMap = await batchResolveSubjects(supabase, allSubjectRawIds, user.id);
-    const finalQuizSubjectId = subjectMap.get(quizData.subject_id) ?? null;
+    let subjectMap: Map<string, string>;
+    let topicMap: Map<string, string>;
+    let finalQuizSubjectId: string | null;
+    let finalQuizTopicId: string | null;
 
-    console.log(`[AI SAVE] ${requestId} subjects resolved: ${subjectMap.size} entries, quiz subject=${finalQuizSubjectId}`);
+    if (_resolved) {
+      // Use pre-resolved data from quiz-resolve endpoint
+      subjectMap = new Map(Object.entries(_resolved.subjectIdMap));
+      topicMap = new Map(Object.entries(_resolved.topicIdMap));
+      finalQuizSubjectId = _resolved.subjectIdMap[quizData.subject_id] ?? null;
+      finalQuizTopicId = _resolved.topicIdMap[`quiz|${quizData.topic_id}|${quizData.subject_id}`] ?? null;
 
-    // --- Batch resolve topics ---
-    const topicEntries = [
-      {
-        key: `quiz|${quizData.topic_id}|${quizData.subject_id}`,
-        subjectId: finalQuizSubjectId,
-        topicName: "",
-        rawTopicId: quizData.topic_id,
-      },
-      ...questions.map((q) => {
-        const resolvedSubject = subjectMap.get(q.subject_id) ?? finalQuizSubjectId;
-        return {
-          key: `q|${q.topic_id}|${q.subtopic}|${resolvedSubject}`,
-          subjectId: resolvedSubject,
-          topicName: q.subtopic || "",
-          rawTopicId: q.topic_id,
-        };
-      }),
-    ];
-    const topicMap = await batchResolveTopics(supabase, topicEntries);
-    const finalQuizTopicId = topicMap.get(`quiz|${quizData.topic_id}|${quizData.subject_id}`) ?? null;
+      // Create subjects that need to be created
+      for (const s of _resolved.subjectsToCreate) {
+        const { data: created, error: createErr } = await supabase
+          .from("subjects")
+          .insert({ teacher_id: user.id, name: s.name })
+          .select("id")
+          .single();
+        if (createErr) {
+          if (createErr.code === "23505") {
+            const { data: existing } = await supabase.from("subjects").select("id").eq("teacher_id", user.id).ilike("name", s.name).single();
+            if (existing) {
+              subjectMap.set(s.raw, existing.id);
+              if (s.raw === quizData.subject_id) finalQuizSubjectId = existing.id;
+              continue;
+            }
+          }
+          logError(`${requestId} createSubject:${s.name}`, createErr);
+          return NextResponse.json({ error: `Erro ao criar disciplina "${s.name}"`, details: createErr }, { status: 500 });
+        }
+        if (created) {
+          subjectMap.set(s.raw, created.id);
+          if (s.raw === quizData.subject_id) finalQuizSubjectId = created.id;
+        }
+      }
 
-    console.log(`[AI SAVE] ${requestId} topics resolved: ${topicMap.size} entries, quiz topic=${finalQuizTopicId}`);
+      // Create topics that need to be created
+      for (const t of _resolved.topicsToCreate) {
+        const { data: created, error: createErr } = await supabase
+          .from("topics")
+          .insert({ subject_id: t.subjectId, name: t.name })
+          .select("id")
+          .single();
+        if (createErr) {
+          if (createErr.code === "23505") {
+            const { data: existing } = await supabase
+              .from("topics")
+              .select("id")
+              .eq("subject_id", t.subjectId)
+              .ilike("name", t.name)
+              .single();
+            if (existing) {
+              topicMap.set(t.key, existing.id);
+              continue;
+            }
+          }
+          logError(`${requestId} createTopic:${t.name}`, createErr);
+          // Non-fatal: topic_id can be null
+        }
+        if (created) {
+          topicMap.set(t.key, created.id);
+        }
+      }
+
+      console.log(`[AI SAVE] ${requestId} pre-resolved: ${subjectMap.size} subjects, ${topicMap.size} topics, ${_resolved.subjectsToCreate.length} subjects created, ${_resolved.topicsToCreate.length} topics created`);
+    } else {
+      // Full resolution (manual quiz creation path)
+      const allSubjectRawIds = [
+        quizData.subject_id,
+        ...questions.map((q) => q.subject_id),
+      ];
+      subjectMap = await batchResolveSubjects(supabase, allSubjectRawIds, user.id);
+      finalQuizSubjectId = subjectMap.get(quizData.subject_id) ?? null;
+
+      console.log(`[AI SAVE] ${requestId} subjects resolved: ${subjectMap.size} entries, quiz subject=${finalQuizSubjectId}`);
+
+      const topicEntries = [
+        {
+          key: `quiz|${quizData.topic_id}|${quizData.subject_id}`,
+          subjectId: finalQuizSubjectId,
+          topicName: "",
+          rawTopicId: quizData.topic_id,
+        },
+        ...questions.map((q) => {
+          const resolvedSubject = subjectMap.get(q.subject_id) ?? finalQuizSubjectId;
+          return {
+            key: `q|${q.topic_id}|${q.subtopic}|${resolvedSubject}`,
+            subjectId: resolvedSubject,
+            topicName: q.subtopic || "",
+            rawTopicId: q.topic_id,
+          };
+        }),
+      ];
+      topicMap = await batchResolveTopics(supabase, topicEntries);
+      finalQuizTopicId = topicMap.get(`quiz|${quizData.topic_id}|${quizData.subject_id}`) ?? null;
+
+      console.log(`[AI SAVE] ${requestId} topics resolved: ${topicMap.size} entries, quiz topic=${finalQuizTopicId}`);
+    }
 
     // --- Normalize questions ---
     const normalizedQuestions = questions.map((q) => {

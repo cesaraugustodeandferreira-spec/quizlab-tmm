@@ -36,9 +36,12 @@ interface GeneratedQuizData {
   }[];
 }
 
-interface SubjectsTopics {
-  subjects: { id: string; name: string }[];
-  topics: { id: string; name: string; subject_id: string }[];
+interface ResolvedData {
+  subjectIdMap: Record<string, string>;
+  subjectsToCreate: { raw: string; name: string }[];
+  topicIdMap: Record<string, string>;
+  topicsToCreate: { key: string; name: string; subjectId: string }[];
+  finalQuizSubjectId: string | null;
 }
 
 const markdownComponents: any = {
@@ -65,13 +68,13 @@ export function AIQuizModal({
   const [subjectsTopics, setSubjectsTopics] = useState<{ subjects: { id: string; name: string }[]; topics: { id: string; name: string; subject_id: string }[] } | null>(null);
   const [generatedQuiz, setGeneratedQuiz] = useState<GeneratedQuizData | null>(null);
   const [generationStage, setGenerationStage] = useState<"idle" | "generating" | "validating" | "complete" | "error">("idle");
+  const [resolveStatus, setResolveStatus] = useState<"idle" | "resolving" | "done" | "error">("idle");
+  const [resolvedData, setResolvedData] = useState<ResolvedData | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
-  const [savedQuizId, setSavedQuizId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ used: number; limit: number; globalUsed: number; globalLimit: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const saveAbortRef = useRef<AbortController | null>(null);
   const timeoutWarningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phraseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [phraseIndex, setPhraseIndex] = useState(0);
@@ -131,8 +134,9 @@ export function AIQuizModal({
     setInput("");
     setGeneratedQuiz(null);
     setGenerationStage("idle");
+    setResolveStatus("idle");
+    setResolvedData(null);
     setSaveStatus("idle");
-    setSavedQuizId(null);
     setError(null);
     fetchSubjectsTopics();
     fetchUsage();
@@ -174,82 +178,45 @@ Como posso ajudar?`,
     }
   };
 
-  const autoSaveQuiz = useCallback(async (quiz: GeneratedQuizData) => {
-    setSaveStatus("saving");
-
-    // Mostrar aviso após 8s se ainda estiver salvando
-    timeoutWarningRef.current = setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `save-warning-${Date.now()}`,
-          role: "assistant",
-          content: "Ainda organizando as questões, só mais um instante...",
-          type: "status",
-          timestamp: Date.now(),
-        },
-      ]);
-    }, 8000);
-
+  const preResolveQuiz = useCallback(async (quiz: GeneratedQuizData) => {
+    setResolveStatus("resolving");
     try {
-      const res = await fetch("/api/ai/quiz-create", {
+      const res = await fetch("/api/ai/quiz-resolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: quiz.title,
-          description: quiz.description,
           subject_id: quiz.subject_id,
           topic_id: quiz.topic_id,
           default_time_seconds: quiz.default_time_seconds,
-          show_ranking: true,
-          show_score: true,
-          show_correct_answers: false,
-          is_shared: false,
           questions: quiz.questions.map((q) => ({
-            statement: q.statement,
-            options: q.options,
-            correct_index: q.correct_index,
             subject_id: q.subject_id,
             topic_id: q.topic_id,
             subtopic: q.subtopic,
-            difficulty: q.difficulty,
-            time_override_seconds: q.time_override_seconds,
-            image_url: q.image_url,
           })),
         }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
-        const detail = errData?.details;
-        const detailStr = detail
-          ? ` [code=${detail.code || "?"}, detail=${detail.details || "?"}, hint=${detail.hint || "?"}]`
-          : "";
-        console.error(`[AI SAVE] frontend error: status=${res.status}, error=${errData?.error}${detailStr}`);
-        throw new Error(errData?.error ?? "Erro ao salvar quiz");
+        throw new Error(errData?.error ?? "Erro ao preparar quiz");
       }
 
-      const data = await res.json();
-      setSavedQuizId(data.id);
-      setSaveStatus("done");
+      const data: ResolvedData = await res.json();
+      setResolvedData(data);
+      setResolveStatus("done");
     } catch (err) {
-      setSaveStatus("error");
-      const msg = err instanceof Error ? err.message : "Erro ao salvar o quiz gerado.";
+      setResolveStatus("error");
+      const msg = err instanceof Error ? err.message : "Erro ao preparar informações do quiz.";
       setMessages((prev) => [
         ...prev,
         {
-          id: `save-error-${Date.now()}`,
+          id: `resolve-error-${Date.now()}`,
           role: "assistant",
-          content: `Não consegui salvar o quiz gerado. ${msg}\n\nQuer tentar novamente?`,
+          content: `Não consegui preparar algumas informações do quiz. ${msg}\n\nQuer tentar novamente?`,
           type: "error",
           timestamp: Date.now(),
         },
       ]);
-    } finally {
-      if (timeoutWarningRef.current) {
-        clearTimeout(timeoutWarningRef.current);
-        timeoutWarningRef.current = null;
-      }
     }
   }, []);
 
@@ -319,7 +286,7 @@ Como posso ajudar?`,
       if (warnings.length > 0) {
         successContent += "\n\n⚠️ Avisos:\n" + warnings.map((w: string) => `- ${w}`).join("\n");
       }
-      successContent += "\n\nO quiz está sendo preparado para revisão...";
+      successContent += "\n\nPreparando informações para revisão...";
 
       setMessages((prev) => [
         ...prev,
@@ -328,8 +295,8 @@ Como posso ajudar?`,
       stopPhraseLoop();
       setGenerationStage("complete");
 
-      // Dispara salvamento em background imediatamente
-      autoSaveQuiz(quizData);
+      // Pre-resolve subjects/topics in background (read-only)
+      preResolveQuiz(quizData);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
       setError(errorMsg);
@@ -357,10 +324,11 @@ Como posso ajudar?`,
     handleSend();
   };
 
-  const handleRetrySave = () => {
+  const handleRetryResolve = () => {
     if (!generatedQuiz) return;
-    setSaveStatus("idle");
-    autoSaveQuiz(generatedQuiz);
+    setResolveStatus("idle");
+    setResolvedData(null);
+    preResolveQuiz(generatedQuiz);
   };
 
   const handleCloseRequest = () => {
@@ -372,47 +340,95 @@ Como posso ajudar?`,
       if (confirm("O quiz está sendo salvo. Se fechar agora, o quiz pode não ser salvo. Deseja realmente fechar?")) {
         onClose();
       }
-    } else if (saveStatus === "done" && savedQuizId) {
-      if (confirm("Um quiz foi salvo como rascunho. Deseja fechar sem revisão? O quiz permanecerá na lista de quizzes.")) {
-        onClose();
-      }
     } else {
       onClose();
     }
   };
 
   const handleReview = async () => {
-    if (!savedQuizId) {
-      setError("Quiz ainda não foi salvo. Aguarde ou tente salvar novamente.");
+    if (!generatedQuiz || !resolvedData) {
+      setError("Quiz ainda não foi preparado. Aguarde a preparação ou tente novamente.");
       return;
     }
+    setSaveStatus("saving");
     try {
-      await router.push(`/professor/quizzes/${savedQuizId}`);
+      const res = await fetch("/api/ai/quiz-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: generatedQuiz.title,
+          description: generatedQuiz.description,
+          subject_id: generatedQuiz.subject_id,
+          topic_id: generatedQuiz.topic_id,
+          default_time_seconds: generatedQuiz.default_time_seconds,
+          show_ranking: true,
+          show_score: true,
+          show_correct_answers: false,
+          is_shared: false,
+          questions: generatedQuiz.questions.map((q) => ({
+            statement: q.statement,
+            options: q.options,
+            correct_index: q.correct_index,
+            subject_id: q.subject_id,
+            topic_id: q.topic_id,
+            subtopic: q.subtopic,
+            difficulty: q.difficulty,
+            time_override_seconds: q.time_override_seconds,
+            image_url: q.image_url,
+          })),
+          _resolved: {
+            subjectIdMap: resolvedData.subjectIdMap,
+            subjectsToCreate: resolvedData.subjectsToCreate,
+            topicIdMap: resolvedData.topicIdMap,
+            topicsToCreate: resolvedData.topicsToCreate,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const detail = errData?.details;
+        const detailStr = detail
+          ? ` [code=${detail.code || "?"}, detail=${detail.details || "?"}, hint=${detail.hint || "?"}]`
+          : "";
+        console.error(`[AI SAVE] frontend error: status=${res.status}, error=${errData?.error}${detailStr}`);
+        throw new Error(errData?.error ?? "Erro ao salvar quiz");
+      }
+
+      const data = await res.json();
+      setSaveStatus("done");
+      await router.push(`/professor/quizzes/${data.id}`);
       onClose();
-    } catch {
-      setError("Não foi possível abrir o quiz para revisão. Tente novamente.");
+    } catch (err) {
+      setSaveStatus("error");
+      const msg = err instanceof Error ? err.message : "Erro ao salvar o quiz.";
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `save-error-${Date.now()}`,
+          role: "assistant",
+          content: `Falha ao salvar o quiz. ${msg}\n\nTente novamente — a IA não precisa gerar tudo de novo.`,
+          type: "error",
+          timestamp: Date.now(),
+        },
+      ]);
     }
   };
 
-  const handleDiscard = async () => {
-    if (!savedQuizId) return;
+  const handleDiscard = () => {
     if (!confirm("Descartar quiz? As questões geradas serão perdidas e não poderão ser recuperadas.")) return;
-
-    try {
-      const res = await fetch(`/api/ai/quiz-create?id=${savedQuizId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Erro ao excluir quiz");
-      toast("Quiz descartado.", "ok");
-      onClose();
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Erro ao descartar quiz", "bad");
-    }
+    toast("Quiz descartado.", "ok");
+    onClose();
   };
 
   if (!open) return null;
 
+  const isResolving = resolveStatus === "resolving";
+  const isResolved = resolveStatus === "done";
+  const resolveFailed = resolveStatus === "error";
   const isSaving = saveStatus === "saving";
-  const isSaved = saveStatus === "done";
   const saveFailed = saveStatus === "error";
+  const canReview = isResolved && !isSaving && !saveFailed;
 
   return (
     <div
@@ -447,7 +463,7 @@ Como posso ajudar?`,
           </div>
           <button
             onClick={handleCloseRequest}
-            disabled={generationStage === "generating" || generationStage === "validating"}
+            disabled={generationStage === "generating" || generationStage === "validating" || isSaving}
             aria-label="Fechar"
             className="-mr-2 -mt-1 rounded-lg p-2 text-faint transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
           >
@@ -583,26 +599,32 @@ Como posso ajudar?`,
           </div>
         </div>
 
-        {/* Barra de ações inferior: Revisar / Descartar / Retry Save */}
         {generationStage === "complete" && (
           <div className="border-t border-line px-6 py-4 bg-surface/30">
             <div className="flex items-center justify-between">
               <span className="text-sm text-mute">
                 {isSaving
-                  ? "Preparando revisão..."
-                  : isSaved
-                    ? "Quiz pronto para revisão"
-                    : saveFailed
-                      ? "Falha ao salvar"
-                      : ""}
+                  ? "Salvando quiz..."
+                  : isResolving
+                    ? "Preparando..."
+                    : resolveFailed
+                      ? "Falha na preparação"
+                      : canReview
+                        ? "Pronto para revisão"
+                        : ""}
               </span>
               <div className="flex gap-2">
+                {resolveFailed && (
+                  <Button variant="outline" size="sm" onClick={handleRetryResolve}>
+                    Tentar preparar novamente
+                  </Button>
+                )}
                 {saveFailed && (
-                  <Button variant="outline" size="sm" onClick={handleRetrySave}>
+                  <Button variant="outline" size="sm" onClick={handleReview}>
                     Tentar salvar novamente
                   </Button>
                 )}
-                {isSaved && (
+                {generationStage === "complete" && !isSaving && (
                   <Button variant="outline" size="sm" onClick={handleDiscard} className="text-bad hover:text-bad hover:bg-bad-deep">
                     <IconTrash size={14} className="mr-1.5" />
                     Descartar
@@ -611,12 +633,12 @@ Como posso ajudar?`,
                 <Button
                   onClick={handleReview}
                   className="bg-accent"
-                  disabled={!isSaved}
+                  disabled={!canReview}
                 >
                   {isSaving ? (
                     <span className="flex items-center gap-2">
                       <IconLoader size={16} className="animate-spin" />
-                      Preparando...
+                      Salvando...
                     </span>
                   ) : (
                     "Revisar e continuar"
