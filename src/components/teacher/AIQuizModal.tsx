@@ -112,21 +112,21 @@ export function AIQuizModal({
     const welcomeMsg: AIQuizMessage = {
       id: `welcome-${Date.now()}`,
       role: "assistant",
-      content: `Ol\u00e1! Eu posso criar um quiz completo a partir da sua descri\u00e7\u00e3o.
+      content: `Olá! Eu posso criar um quiz completo a partir da sua descrição.
 
-**Como funciona:** voc\u00ea me diz o que precisa e eu gero o quiz com quest\u00f5es, alternativas, gabarito, temas por quest\u00e3o e n\u00edveis de dificuldade.
+**Como funciona:** você me diz o que precisa e eu gero o quiz com questões, alternativas, gabarito, temas por questão e níveis de dificuldade.
 
 **Exemplos de como pedir:**
-- "Crie um quiz de matem\u00e1tica pro 7\u00ba ano com 15 quest\u00f5es sobre fra\u00e7\u00f5es, dificuldade m\u00e9dia, 30 segundos por quest\u00e3o"
-- "Quiz de hist\u00f3ria sobre Revolu\u00e7\u00e3o Francesa, 10 quest\u00f5es, misturar f\u00e1cil e m\u00e9dio"
-- "Crie um quiz de portugu\u00eas com 20 quest\u00f5es: 10 de concord\u00e2ncia verbal, 10 de reg\u00eancia, dificuldade m\u00e9dia"
+- "Crie um quiz de matemática pro 7º ano com 15 questões sobre frações, dificuldade média, 30 segundos por questão"
+- "Quiz de história sobre Revolução Francesa, 10 questões, misturar fácil e médio"
+- "Crie um quiz de português com 20 questões: 10 de concordância verbal, 10 de regência, dificuldade média"
 
-**O que eu preciso saber (o m\u00ednimo):**
+**O que eu preciso saber (o mínimo):**
 1. Disciplina
 2. Tema/assunto principal
-3. Quantidade de quest\u00f5es
+3. Quantidade de questões
 
-O resto (dificuldade, tempo, distribui\u00e7\u00e3o) eu preencho com padr\u00f5es razo\u00e1veis se voc\u00ea n\u00e3o especificar.
+O resto (dificuldade, tempo, distribuição) eu preencho com padrões razoáveis se você não especificar.
 
 Como posso ajudar?`,
       type: "text",
@@ -143,21 +143,21 @@ Como posso ajudar?`,
         setSubjectsTopics(data);
       }
     } catch {
-      // Silencioso - n\u00e3o bloqueia o chat
+      // Silencioso - não bloqueia o chat
     }
   };
 
   const autoSaveQuiz = useCallback(async (quiz: GeneratedQuizData) => {
     setSaveStatus("saving");
 
-    // Mostrar aviso ap\u00f3s 8s se ainda estiver salvando
+    // Mostrar aviso após 8s se ainda estiver salvando
     timeoutWarningRef.current = setTimeout(() => {
       setMessages((prev) => [
         ...prev,
         {
           id: `save-warning-${Date.now()}`,
           role: "assistant",
-          content: "Ainda organizando as quest\u00f5es, s\u00f3 mais um instante...",
+          content: "Ainda organizando as questões, só mais um instante...",
           type: "status",
           timestamp: Date.now(),
         },
@@ -213,7 +213,7 @@ Como posso ajudar?`,
         {
           id: `save-error-${Date.now()}`,
           role: "assistant",
-          content: `N\u00e3o consegui salvar o quiz gerado. ${msg}\n\nQuer tentar novamente?`,
+          content: `Não consegui salvar o quiz gerado. ${msg}\n\nQuer tentar novamente?`,
           type: "error",
           timestamp: Date.now(),
         },
@@ -273,7 +273,7 @@ Como posso ajudar?`,
       else fetchUsage();
 
       if (quiz.questions.length === 0) {
-        throw new Error("Nenhuma quest\u00e3o v\u00e1lida foi gerada");
+        throw new Error("Nenhuma questão válida foi gerada");
       }
 
       const quizData: GeneratedQuizData = {
@@ -287,11 +287,11 @@ Como posso ajudar?`,
 
       setGeneratedQuiz(quizData);
 
-      let successContent = `Quiz criado com sucesso! **${generatedCount} de ${requestedCount} quest\u00f5es** foram geradas e validadas.`;
+      let successContent = `Quiz criado com sucesso! **${generatedCount} de ${requestedCount} questões** foram geradas e validadas.`;
       if (warnings.length > 0) {
-        successContent += "\n\n\u26a0\ufe0f Avisos:\n" + warnings.map((w: string) => `- ${w}`).join("\n");
+        successContent += "\n\n⚠️ Avisos:\n" + warnings.map((w: string) => `- ${w}`).join("\n");
       }
-      successContent += "\n\nO quiz est\u00e1 sendo preparado para revis\u00e3o...";
+      successContent += "\n\nO quiz está sendo preparado para revisão...";
 
       setMessages((prev) => [
         ...prev,
@@ -307,7 +307,7 @@ Como posso ajudar?`,
       setGenerationStage("error");
       setMessages((prev) => [
         ...prev,
-        { id: `error-${Date.now()}`, role: "assistant", content: `N\u00e3o consegui gerar o quiz: ${errorMsg}. Quer tentar de novo?`, type: "error", timestamp: Date.now() },
+        { id: `error-${Date.now()}`, role: "assistant", content: `Não consegui gerar o quiz: ${errorMsg}. Quer tentar de novo?`, type: "error", timestamp: Date.now() },
       ]);
     } finally {
       setLoading(false);
@@ -335,15 +335,15 @@ Como posso ajudar?`,
 
   const handleCloseRequest = () => {
     if (generationStage === "generating" || generationStage === "validating") {
-      if (confirm("A gera\u00e7\u00e3o est\u00e1 em andamento. Se fechar agora, o progresso ser\u00e1 perdido. Deseja realmente cancelar?")) {
+      if (confirm("A geração está em andamento. Se fechar agora, o progresso será perdido. Deseja realmente cancelar?")) {
         onClose();
       }
     } else if (saveStatus === "saving") {
-      if (confirm("O quiz est\u00e1 sendo salvo. Se fechar agora, o quiz pode n\u00e3o ser salvo. Deseja realmente fechar?")) {
+      if (confirm("O quiz está sendo salvo. Se fechar agora, o quiz pode não ser salvo. Deseja realmente fechar?")) {
         onClose();
       }
     } else if (saveStatus === "done" && savedQuizId) {
-      if (confirm("Um quiz foi salvo como rascunho. Deseja fechar sem revis\u00e3o? O quiz permanecer\u00e1 na lista de quizzes.")) {
+      if (confirm("Um quiz foi salvo como rascunho. Deseja fechar sem revisão? O quiz permanecerá na lista de quizzes.")) {
         onClose();
       }
     } else {
@@ -366,7 +366,7 @@ Como posso ajudar?`,
 
   const handleDiscard = async () => {
     if (!savedQuizId) return;
-    if (!confirm("Descartar quiz? As quest\u00f5es geradas ser\u00e3o perdidas e n\u00e3o poder\u00e3o ser recuperadas.")) return;
+    if (!confirm("Descartar quiz? As questões geradas serão perdidas e não poderão ser recuperadas.")) return;
 
     try {
       const res = await fetch(`/api/ai/quiz-create?id=${savedQuizId}`, { method: "DELETE" });
@@ -407,10 +407,10 @@ Como posso ajudar?`,
             </span>
             <div>
               <h2 className="font-display text-lg font-semibold text-ink">Criar quiz com IA</h2>
-              <p className="text-xs text-mute">Descreva o quiz que voc\u00ea quer e eu gero para voc\u00ea</p>
+              <p className="text-xs text-mute">Descreva o quiz que você quer e eu gero para você</p>
               {usage && (
                 <p className="mt-0.5 text-[11px] font-medium text-faint">
-                  {usage.used}/{usage.limit} gera\u00e7\u00f5es hoje · {usage.globalUsed}/{usage.globalLimit} da plataforma
+                  {usage.used}/{usage.limit} gerações hoje · {usage.globalUsed}/{usage.globalLimit} da plataforma
                 </p>
               )}
             </div>
@@ -486,8 +486,8 @@ Como posso ajudar?`,
                 <IconLoader size={16} className="animate-spin text-accent" />
                 <span>
                   {generationStage === "generating"
-                    ? "Gerando quest\u00f5es..."
-                    : "Validando quest\u00f5es e respostas..."}
+                    ? "Gerando questões..."
+                    : "Validando questões e respostas..."}
                 </span>
               </div>
             </div>
@@ -521,7 +521,7 @@ Como posso ajudar?`,
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={loading ? "Gerando..." : "Descreva o quiz que voc\u00ea quer..."}
+                placeholder={loading ? "Gerando..." : "Descreva o quiz que você quer..."}
                 disabled={loading}
                 rows={1}
                 className={cn(
@@ -541,15 +541,15 @@ Como posso ajudar?`,
           </div>
         </div>
 
-        {/* Barra de a\u00e7\u00f5es inferior: Revisar / Descartar / Retry Save */}
+        {/* Barra de ações inferior: Revisar / Descartar / Retry Save */}
         {generationStage === "complete" && (
           <div className="border-t border-line px-6 py-4 bg-surface/30">
             <div className="flex items-center justify-between">
               <span className="text-sm text-mute">
                 {isSaving
-                  ? "Preparando revis\u00e3o..."
+                  ? "Preparando revisão..."
                   : isSaved
-                    ? "Quiz pronto para revis\u00e3o"
+                    ? "Quiz pronto para revisão"
                     : saveFailed
                       ? "Falha ao salvar"
                       : ""}
