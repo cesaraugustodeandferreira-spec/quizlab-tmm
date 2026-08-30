@@ -274,6 +274,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Safety net: ensure default subjects exist (trigger may have failed during signup)
+    const { count: subjectCount } = await supabase
+      .from("subjects")
+      .select("id", { count: "exact", head: true })
+      .eq("teacher_id", user.id);
+    if (!subjectCount || subjectCount === 0) {
+      console.log(`[AI SAVE] ${requestId} no subjects for user ${user.id}, creating defaults...`);
+      const defaultSubjects = [
+        "Língua Portuguesa", "Matemática", "Ciências", "Biologia",
+        "Física", "Química", "História", "Geografia", "Arte",
+        "Educação Física", "Língua Inglesa",
+      ];
+      const { error: subjectsErr } = await supabase.from("subjects").insert(
+        defaultSubjects.map((name) => ({ teacher_id: user.id, name }))
+      );
+      if (subjectsErr) {
+        logError(`${requestId} defaultSubjects`, subjectsErr);
+        // Non-fatal: quiz can still be saved with custom subjects
+      }
+    }
+
     const body: CreateQuizRequest = await request.json();
     const { questions, ...quizData } = body;
 
