@@ -68,7 +68,7 @@ export function AIQuizModal({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [savedQuizId, setSavedQuizId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [usage, setUsage] = useState<{ used: number; limit: number; globalUsed: number; globalLimit: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
@@ -93,7 +93,7 @@ export function AIQuizModal({
       const res = await fetch("/api/ai/quiz");
       if (res.ok) {
         const data = await res.json();
-        setUsage({ used: data.used, limit: data.limit });
+        setUsage({ used: data.used, limit: data.limit, globalUsed: data.globalUsed ?? 0, globalLimit: data.globalLimit ?? 18 });
       }
     } catch {}
   };
@@ -253,7 +253,15 @@ Como posso ajudar?`,
       const data = await res.json();
 
       if (!res.ok) {
-        if ((data as any)?.limit) setUsage({ used: (data as any).used ?? usage?.used ?? 0, limit: (data as any).limit });
+        const errData = data as any;
+        if (errData?.limit) {
+          setUsage({
+            used: errData.used ?? usage?.used ?? 0,
+            limit: errData.limit,
+            globalUsed: errData.globalUsed ?? usage?.globalUsed ?? 0,
+            globalLimit: errData.globalLimit ?? usage?.globalLimit ?? 18,
+          });
+        }
         throw new Error(data.error ?? "Erro ao gerar quiz");
       }
 
@@ -261,7 +269,7 @@ Como posso ajudar?`,
       await new Promise((r) => setTimeout(r, 500));
 
       const { quiz, warnings, generatedCount, requestedCount } = data;
-      if (data.usage) setUsage({ used: data.usage.used, limit: data.usage.limit });
+      if (data.usage) setUsage({ used: data.usage.used, limit: data.usage.limit, globalUsed: data.usage.globalUsed ?? 0, globalLimit: data.usage.globalLimit ?? 18 });
       else fetchUsage();
 
       if (quiz.questions.length === 0) {
@@ -402,7 +410,7 @@ Como posso ajudar?`,
               <p className="text-xs text-mute">Descreva o quiz que voc\u00ea quer e eu gero para voc\u00ea</p>
               {usage && (
                 <p className="mt-0.5 text-[11px] font-medium text-faint">
-                  {usage.used}/{usage.limit} gera\u00e7\u00f5es hoje
+                  {usage.used}/{usage.limit} gera\u00e7\u00f5es hoje · {usage.globalUsed}/{usage.globalLimit} da plataforma
                 </p>
               )}
             </div>
@@ -495,6 +503,18 @@ Como posso ajudar?`,
                 </Button>
               </div>
             )}
+            {usage && usage.used >= usage.limit && !error && (
+              <div className="mb-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-500/10 px-3 py-2 rounded-xl">
+                <IconAlertCircle size={16} />
+                <span>Limite individual de {usage.limit} atingido. Renova amanhã. Crie quizzes manualmente enquanto isso.</span>
+              </div>
+            )}
+            {usage && usage.globalUsed >= usage.globalLimit && !error && (
+              <div className="mb-3 flex items-center gap-2 text-sm text-amber-600 bg-amber-500/10 px-3 py-2 rounded-xl">
+                <IconAlertCircle size={16} />
+                <span>Cota diária da plataforma atingida. Renova amanhã. Crie quizzes manualmente enquanto isso.</span>
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
@@ -511,7 +531,7 @@ Como posso ajudar?`,
               />
               <Button
                 onClick={handleSend}
-                disabled={loading || !input.trim()}
+                disabled={loading || !input.trim() || (!!usage && (usage.used >= usage.limit || usage.globalUsed >= usage.globalLimit))}
                 aria-label="Enviar"
                 className="shrink-0"
               >

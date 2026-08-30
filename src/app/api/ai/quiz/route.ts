@@ -4,10 +4,21 @@ import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
-const DAILY_LIMIT = parseInt(process.env.AI_QUIZ_DAILY_LIMIT ?? "12", 10);
+const DAILY_LIMIT = parseInt(process.env.AI_QUIZ_DAILY_LIMIT ?? "5", 10);
+const GLOBAL_DAILY_LIMIT = parseInt(process.env.AI_QUIZ_GLOBAL_DAILY_LIMIT ?? "18", 10);
+
+// professor_id reservado para o contador global compartilhado
+const GLOBAL_COUNTER_ID = "00000000-0000-0000-0000-000000000000";
 
 function getTodayDateStr(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getRenewalTimeStr(): string {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  return `${Math.ceil((tomorrow.getTime() - Date.now()) / 3600000)}h`;
 }
 
 interface ChatMessage { role: "user" | "assistant"; content: string; }
@@ -138,12 +149,34 @@ export async function POST(request: NextRequest) {
 
     // Limite diário: só conta gerações efetivas (antes da chamada já verifica para não consumir cota do Gemini à toa)
     const today = getTodayDateStr();
+    const renewalTime = getRenewalTimeStr();
+
+    // 1) Limite individual
     const { data: usageRow } = await supabase.from("ai_generation_usage").select("count").eq("professor_id", user.id).eq("usage_date", today).maybeSingle();
     const currentCount = usageRow?.count ?? 0;
     if (currentCount >= DAILY_LIMIT) {
-      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0,0,0,0);
-      const hoursLeft = Math.ceil((tomorrow.getTime() - Date.now()) / 3600000);
-      return NextResponse.json({ error: `Você atingiu o limite de ${DAILY_LIMIT} quizzes gerados por IA hoje. O limite renova em ${hoursLeft}h (à meia-noite). Você ainda pode criar quizzes manualmente.`, limit: DAILY_LIMIT, used: currentCount }, { status: 429 });
+      return NextResponse.json({
+        error: `Você atingiu seu limite individual de ${DAILY_LIMIT} quizzes gerados por IA hoje (limite técnico da cota gratuita do provedor de IA). Ele renova em ${renewalTime}. Você ainda pode criar quizzes manualmente.`,
+        limitType: "individual",
+        limit: DAILY_LIMIT,
+        used: currentCount,
+        globalUsed: 0,
+        globalLimit: GLOBAL_DAILY_LIMIT,
+      }, { status: 429 });
+    }
+
+    // 2) Limite global da plataforma
+    const { data: globalRow } = await supabase.from("ai_generation_usage").select("count").eq("professor_id", GLOBAL_COUNTER_ID).eq("usage_date", today).maybeSingle();
+    const globalCount = globalRow?.count ?? 0;
+    if (globalCount >= GLOBAL_DAILY_LIMIT) {
+      return NextResponse.json({
+        error: `A cota diária de geração por IA da plataforma foi atingida (${GLOBAL_DAILY_LIMIT} gerações hoje). Ela renova em ${renewalTime}. Você ainda pode criar quizzes manualmente.`,
+        limitType: "global",
+        limit: DAILY_LIMIT,
+        used: currentCount,
+        globalUsed: globalCount,
+        globalLimit: GLOBAL_DAILY_LIMIT,
+      }, { status: 429 });
     }
 
     const systemPrompt = buildSystemPrompt(existingSubjects, existingTopics);
@@ -167,12 +200,27 @@ export async function POST(request: NextRequest) {
     });
     console.log(`[AI SHUFFLE] Generated ${shuffledQuestions.length} questions, correct_index distribution:`, shuffledQuestions.map(q => q.correct_index));
 
-    // Incrementa contador apenas em geração efetiva
+    // Incrementa contadores (individual + global)
     const newCount = currentCount + 1;
+    const newGlobalCount = globalCount + 1;
+
+    // Upsert individual
     const { error: usageError } = await supabase.from("ai_generation_usage").upsert({ professor_id: user.id, usage_date: today, count: newCount }, { onConflict: "professor_id,usage_date" });
-    if (usageError) console.error("[AI USAGE] erro ao incrementar", usageError);
-    else console.log(`[AI USAGE] ${user.id} ${today} ${newCount}/${DAILY_LIMIT}`);
-    return NextResponse.json({ quiz: { ...parsed.quiz, questions: shuffledQuestions }, warnings, generatedCount: shuffledQuestions.length, requestedCount: parsed.quiz.questions.length, usage: { used: newCount, limit: DAILY_LIMIT } });
+    if (usageError) console.error("[AI USAGE] erro ao incrementar individual", usageError);
+    else console.log(`[AI USAGE] individual ${user.id} ${today} ${newCount}/${DAILY_LIMIT}`);
+
+    // Upsert global
+    const { error: globalError } = await supabase.from("ai_generation_usage").upsert({ professor_id: GLOBAL_COUNTER_ID, usage_date: today, count: newGlobalCount }, { onConflict: "professor_id,usage_date" });
+    if (globalError) console.error("[AI USAGE] erro ao incrementar global", globalError);
+    else console.log(`[AI USAGE] global ${today} ${newGlobalCount}/${GLOBAL_DAILY_LIMIT}`);
+
+    return NextResponse.json({
+      quiz: { ...parsed.quiz, questions: shuffledQuestions },
+      warnings,
+      generatedCount: shuffledQuestions.length,
+      requestedCount: parsed.quiz.questions.length,
+      usage: { used: newCount, limit: DAILY_LIMIT, globalUsed: newGlobalCount, globalLimit: GLOBAL_DAILY_LIMIT },
+    });
   } catch (error) {
     console.error("Erro na geração de quiz por IA:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro interno do servidor";
@@ -187,9 +235,20 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     const today = getTodayDateStr();
-    const { data: row } = await supabase.from("ai_generation_usage").select("count").eq("professor_id", user.id).eq("usage_date", today).maybeSingle();
-    return NextResponse.json({ used: row?.count ?? 0, limit: DAILY_LIMIT, date: today });
+
+    const [{ data: individualRow }, { data: globalRow }] = await Promise.all([
+      supabase.from("ai_generation_usage").select("count").eq("professor_id", user.id).eq("usage_date", today).maybeSingle(),
+      supabase.from("ai_generation_usage").select("count").eq("professor_id", GLOBAL_COUNTER_ID).eq("usage_date", today).maybeSingle(),
+    ]);
+
+    return NextResponse.json({
+      used: individualRow?.count ?? 0,
+      limit: DAILY_LIMIT,
+      globalUsed: globalRow?.count ?? 0,
+      globalLimit: GLOBAL_DAILY_LIMIT,
+      date: today,
+    });
   } catch (e) {
-    return NextResponse.json({ used: 0, limit: DAILY_LIMIT });
+    return NextResponse.json({ used: 0, limit: DAILY_LIMIT, globalUsed: 0, globalLimit: GLOBAL_DAILY_LIMIT });
   }
 }
