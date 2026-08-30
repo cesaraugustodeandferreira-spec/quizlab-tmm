@@ -73,6 +73,32 @@ export function AIQuizModal({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
   const timeoutWarningRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phraseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  const loadingPhrases = [
+    "Começando...",
+    "Escrevendo as questões...",
+    "Conferindo as contas e embaralhando as respostas...",
+    "Organizando disciplinas e temas...",
+    "Fazendo os ajustes finais...",
+    "Só mais um segundo...",
+    "Quase lá...",
+  ];
+
+  const startPhraseLoop = useCallback(() => {
+    setPhraseIndex(0);
+    phraseIntervalRef.current = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % loadingPhrases.length);
+    }, 2500);
+  }, [loadingPhrases.length]);
+
+  const stopPhraseLoop = useCallback(() => {
+    if (phraseIntervalRef.current) {
+      clearInterval(phraseIntervalRef.current);
+      phraseIntervalRef.current = null;
+    }
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -85,8 +111,9 @@ export function AIQuizModal({
   useEffect(() => {
     return () => {
       if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
+      stopPhraseLoop();
     };
-  }, []);
+  }, [stopPhraseLoop]);
 
   const fetchUsage = async () => {
     try {
@@ -235,6 +262,7 @@ Como posso ajudar?`,
     setMessages((prev) => [...prev, { id: `user-${Date.now()}`, role: "user", content: userMessage, type: "text", timestamp: Date.now() }]);
     setLoading(true);
     setGenerationStage("generating");
+    startPhraseLoop();
 
     try {
       const userMsg: AIQuizMessage = { id: `user-${Date.now()}`, role: "user", content: userMessage, type: "text", timestamp: Date.now() };
@@ -297,6 +325,7 @@ Como posso ajudar?`,
         ...prev,
         { id: `success-${Date.now()}`, role: "assistant", content: successContent, type: "result", timestamp: Date.now() },
       ]);
+      stopPhraseLoop();
       setGenerationStage("complete");
 
       // Dispara salvamento em background imediatamente
@@ -304,6 +333,7 @@ Como posso ajudar?`,
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
       setError(errorMsg);
+      stopPhraseLoop();
       setGenerationStage("error");
       setMessages((prev) => [
         ...prev,
@@ -481,14 +511,26 @@ Como posso ajudar?`,
           </div>
 
           {(generationStage === "generating" || generationStage === "validating") && (
-            <div className="border-t border-line px-6 py-3 bg-surface/50">
-              <div className="flex items-center gap-3 text-sm text-mute">
-                <IconLoader size={16} className="animate-spin text-accent" />
-                <span>
-                  {generationStage === "generating"
-                    ? "Gerando questões..."
-                    : "Validando questões e respostas..."}
+            <div className="px-6 py-3">
+              <div className="flex items-start gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+                  <IconSparkles size={16} />
                 </span>
+                <div className="flex flex-col gap-1">
+                  <div className="rounded-2xl rounded-tl-md bg-[#16171B] px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-block size-1.5 animate-pulse rounded-full bg-accent [animation-delay:0ms]" />
+                      <span className="inline-block size-1.5 animate-pulse rounded-full bg-accent [animation-delay:150ms]" />
+                      <span className="inline-block size-1.5 animate-pulse rounded-full bg-accent [animation-delay:300ms]" />
+                    </div>
+                  </div>
+                  <span
+                    key={phraseIndex}
+                    className="block text-xs text-faint animate-[fadeIn_150ms_ease-out]"
+                  >
+                    {loadingPhrases[phraseIndex]}
+                  </span>
+                </div>
               </div>
             </div>
           )}
