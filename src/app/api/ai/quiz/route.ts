@@ -10,15 +10,25 @@ const GLOBAL_DAILY_LIMIT = parseInt(process.env.AI_QUIZ_GLOBAL_DAILY_LIMIT ?? "1
 // professor_id reservado para o contador global compartilhado
 const GLOBAL_COUNTER_ID = "00000000-0000-0000-0000-000000000000";
 
+// Fuso horário de São Paulo para contagem de dia-calendário
+const SAO_PAULO_TZ = "America/Sao_Paulo";
+
 function getTodayDateStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toLocaleDateString("sv-SE", { timeZone: SAO_PAULO_TZ });
 }
 
 function getRenewalTimeStr(): string {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
-  return `${Math.ceil((tomorrow.getTime() - Date.now()) / 3600000)}h`;
+  const now = new Date();
+  // Meia-noite em São Paulo hoje
+  const midnightStr = now.toLocaleDateString("sv-SE", { timeZone: SAO_PAULO_TZ }) + "T00:00:00";
+  const midnight = new Date(midnightStr + "-03:00");
+  // Se já passou de meia-noite em SP, usar amanhã
+  if (now >= midnight) {
+    midnight.setDate(midnight.getDate() + 1);
+  }
+  const diffMs = midnight.getTime() - now.getTime();
+  const diffHours = Math.ceil(diffMs / 3600000);
+  return `${diffHours}h`;
 }
 
 interface ChatMessage { role: "user" | "assistant"; content: string; }
