@@ -9,12 +9,15 @@ import {
   IconLayoutDashboard,
   IconListDetails,
   IconLogout,
+  IconMessageReport,
   IconSchool,
   IconUser,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
+
+const ADMIN_EMAIL = "cesaraugustodeandferreira@gmail.com";
 
 const NAV = [
   { href: "/professor/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
@@ -24,6 +27,16 @@ const NAV = [
   { href: "/professor/diagnosticos", label: "Diagnósticos", icon: IconChartBar },
   { href: "/professor/perfil", label: "Perfil", icon: IconUser },
 ] as const;
+
+const ADMIN_NAV = {
+  href: "/admin/feedback",
+  label: "Feedbacks",
+  icon: IconMessageReport,
+} as const;
+
+function isAdmin(email: string | undefined): boolean {
+  return typeof email === "string" && email.toLowerCase() === ADMIN_EMAIL;
+}
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -52,7 +65,7 @@ export function usePageHeader(state: HeaderState) {
 
 export function ProfessorShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [header, setHeader] = useState<HeaderState | null>(null);
 
   return (
@@ -64,6 +77,9 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
         {NAV.slice(0, 6).map((item) => (
           <RailLink key={item.href} {...item} pathname={pathname!} compact />
         ))}
+        {isAdmin(user?.email) && (
+          <RailLink {...ADMIN_NAV} pathname={pathname!} compact />
+        )}
       </nav>
 
       <div className="flex min-h-dvh">
@@ -85,6 +101,9 @@ export function ProfessorShell({ children }: { children: React.ReactNode }) {
             {NAV.map((item) => (
               <RailLink key={item.href} {...item} pathname={pathname!} />
             ))}
+            {isAdmin(user?.email) && (
+              <RailLink {...ADMIN_NAV} pathname={pathname!} />
+            )}
           </div>
           <button
             onClick={() => void signOut()}

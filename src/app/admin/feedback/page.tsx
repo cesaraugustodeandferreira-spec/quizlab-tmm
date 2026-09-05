@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { fmtDateTime } from "@/lib/utils";
-import { IconMessageCircle, IconAlertCircle } from "@tabler/icons-react";
+import { IconArrowLeft, IconMessageCircle, IconAlertCircle } from "@tabler/icons-react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +23,20 @@ export default async function AdminFeedbackPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-10 px-4">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-ink">Relatos de problemas</h1>
-        <p className="mt-1 text-sm text-mute">
-          Feedback enviado pelos professores. {feedbacks?.length ?? 0} relato(s).
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-ink">Relatos de problemas</h1>
+          <p className="mt-1 text-sm text-mute">
+            Feedback enviado pelos professores. {feedbacks?.length ?? 0} relato(s).
+          </p>
+        </div>
+        <Link
+          href="/professor/dashboard"
+          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[10px] border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-2 hover:border-white/20"
+        >
+          <IconArrowLeft size={16} />
+          Voltar ao dashboard
+        </Link>
       </div>
 
       {error && (
